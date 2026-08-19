@@ -14,9 +14,9 @@ team will depend on: 52 unique cards, 13 each, no overlap, correct
 seating order, and correct trick-winning logic (both NT and trump games).
 """
 
-from card import Card, Rank, Suit
-from deck import Deck, new_deal, seating_order_from
-from player import Player, Position
+from card_model.card import Card, Rank, Suit
+from card_model.deck import Deck, new_deal, seating_order_from
+from card_model.player import Player, Position
 
 
 def test_fresh_deck_has_52_unique_cards():
