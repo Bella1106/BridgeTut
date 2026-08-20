@@ -12,7 +12,7 @@ without needing a full Player object.
 from __future__ import annotations
 from typing import Iterable, List
 
-from card import Card, Suit
+from .card import Card, Suit
 
 
 class Hand:

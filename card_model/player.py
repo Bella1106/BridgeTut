@@ -11,7 +11,7 @@ Positions and partnerships, per the rules doc:
 from __future__ import annotations
 from enum import Enum
 
-from hand import Hand
+from .hand import Hand
 
 
 class Position(Enum):
