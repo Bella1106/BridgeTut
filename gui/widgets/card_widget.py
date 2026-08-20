@@ -1,7 +1,13 @@
-#Makes the card itself a reusable GUI component.
+# Makes the card itself a reusable GUI component.
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QPushButton
+from PySide6.QtWidgets import (
+    QPushButton,
+    QLabel,
+    QVBoxLayout,
+    QHBoxLayout,
+    QWidget,
+)
 
 
 class CardWidget(QPushButton):
@@ -14,15 +20,102 @@ class CardWidget(QPushButton):
 
         self.setFixedSize(42, 68)
 
-        self.setText(
-            f"{card.rank.short}\n{card.suit.symbol}"
-        )
-
         self.setCursor(Qt.PointingHandCursor)
 
-        self.clicked.connect(self.toggle_selected)
+        # -------------------------------------------------
+        # CARD CONTENT
+        # -------------------------------------------------
+
+        self.content = QWidget(self)
+        self.content.setAttribute(
+            Qt.WA_TransparentForMouseEvents
+        )
+
+        content_layout = QVBoxLayout(self.content)
+
+        content_layout.setContentsMargins(
+            2,
+            2,
+            2,
+            2
+        )
+
+        content_layout.setSpacing(0)
+
+        # -------------------------------------------------
+        # TOP LEFT
+        # -------------------------------------------------
+
+        top = QHBoxLayout()
+        top.setContentsMargins(0, 0, 0, 0)
+
+        self.top_label = QLabel(
+            f"{card.rank.short}{card.suit.symbol}"
+        )
+
+        self.top_label.setAlignment(
+            Qt.AlignLeft | Qt.AlignTop
+        )
+
+        top.addWidget(self.top_label)
+        top.addStretch()
+
+        content_layout.addLayout(top)
+
+        # -------------------------------------------------
+        # EMPTY SPACE
+        # -------------------------------------------------
+
+        content_layout.addStretch()
+
+        # -------------------------------------------------
+        # BOTTOM RIGHT
+        # -------------------------------------------------
+
+        bottom = QHBoxLayout()
+        bottom.setContentsMargins(0, 0, 0, 0)
+
+        bottom.addStretch()
+
+        self.bottom_label = QLabel(
+            f"{card.rank.short}{card.suit.symbol}"
+        )
+
+        self.bottom_label.setAlignment(
+            Qt.AlignRight | Qt.AlignBottom
+        )
+
+        bottom.addWidget(self.bottom_label)
+
+        content_layout.addLayout(bottom)
+
+        # -------------------------------------------------
+        # POSITION CONTENT INSIDE BUTTON
+        # -------------------------------------------------
+
+        self.content.setGeometry(
+            2,
+            2,
+            self.width() - 4,
+            self.height() - 4
+        )
+
+        self.clicked.connect(
+            self.toggle_selected
+        )
 
         self.update_style()
+
+    def resizeEvent(self, event):
+
+        super().resizeEvent(event)
+
+        self.content.setGeometry(
+            2,
+            2,
+            self.width() - 4,
+            self.height() - 4
+        )
 
     def toggle_selected(self):
 
@@ -51,15 +144,22 @@ class CardWidget(QPushButton):
             QPushButton {{
                 background-color: {background};
 
-                color: {suit_color};
-
                 border: 2px solid {border};
                 border-radius: 6px;
 
-                font-size: 13px;
+                padding: 0px;
+            }}
+
+            QLabel {{
+                color: {suit_color};
+
+                font-size: 12px;
                 font-weight: bold;
 
-                padding: 3px;
+                background-color: transparent;
+                border: none;
+
+                padding: 0px;
             }}
 
             QPushButton:hover {{

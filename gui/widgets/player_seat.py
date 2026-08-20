@@ -1,4 +1,6 @@
-#displays one player's hand.
+"""
+Displays one player's hand around the BridgeTut table.
+"""
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -6,7 +8,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QLabel,
-    QScrollArea,
+    QWidget,
 )
 
 from .card_widget import CardWidget
@@ -42,7 +44,7 @@ class PlayerSeat(QFrame):
             10
         )
 
-        layout.setSpacing(8)
+        layout.setSpacing(6)
 
         # -------------------------------------------------
         # HEADER
@@ -95,44 +97,76 @@ class PlayerSeat(QFrame):
         # HAND
         # -------------------------------------------------
 
-        scroll = QScrollArea()
+        hand_container = QWidget()
 
-        scroll.setWidgetResizable(True)
+        hand_container.setObjectName("handContainer")
 
-        scroll.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarAlwaysOff
+        # IMPORTANT:
+        # Transparent background.
+        # This removes the big white surface.
+        hand_container.setAttribute(
+            Qt.WA_TranslucentBackground
         )
 
-        scroll.setVerticalScrollBarPolicy(
-            Qt.ScrollBarAlwaysOff
-        )
+        position = self.player.position.value
 
-        scroll.setFrameShape(QFrame.NoFrame)
+        # -------------------------------------------------
+        # NORTH / SOUTH
+        # -------------------------------------------------
 
-        hand_widget = QFrame()
+        if position in ("N", "S"):
 
-        hand_layout = QHBoxLayout(hand_widget)
+            hand_layout = QHBoxLayout(hand_container)
 
-        hand_layout.setContentsMargins(
-            0,
-            0,
-            0,
-            0
-        )
+            hand_layout.setContentsMargins(
+                0,
+                0,
+                0,
+                0
+            )
 
-        hand_layout.setSpacing(-7)
+            # Negative spacing makes the cards overlap.
+            hand_layout.setSpacing(-18)
 
-        for card in self.player.hand.sorted_by_suit():
+            for card in self.player.hand.sorted_by_suit():
 
-            card_widget = CardWidget(card)
+                card_widget = CardWidget(card)
 
-            hand_layout.addWidget(card_widget)
+                hand_layout.addWidget(card_widget)
 
-        hand_layout.addStretch()
+            hand_layout.addStretch()
 
-        scroll.setWidget(hand_widget)
+        # -------------------------------------------------
+        # EAST / WEST
+        # -------------------------------------------------
 
-        layout.addWidget(scroll)
+        else:
+
+            hand_layout = QVBoxLayout(hand_container)
+
+            hand_layout.setContentsMargins(
+                0,
+                0,
+                0,
+                0
+            )
+
+            # Cards overlap vertically.
+            hand_layout.setSpacing(-48)
+
+            for card in self.player.hand.sorted_by_suit():
+
+                card_widget = CardWidget(card)
+
+                hand_layout.addWidget(card_widget)
+
+            hand_layout.addStretch()
+
+        layout.addWidget(hand_container)
+
+        # -------------------------------------------------
+        # SEAT STYLE
+        # -------------------------------------------------
 
         self.setStyleSheet(self.get_style())
 
@@ -146,6 +180,10 @@ class PlayerSeat(QFrame):
                     border: 3px solid #e5c557;
                     border-radius: 10px;
                 }
+
+                QWidget#handContainer {
+                    background-color: transparent;
+                }
             """
 
         return """
@@ -153,5 +191,9 @@ class PlayerSeat(QFrame):
                 background-color: #00582b;
                 border: 1px solid transparent;
                 border-radius: 10px;
+            }
+
+            QWidget#handContainer {
+                background-color: transparent;
             }
         """
