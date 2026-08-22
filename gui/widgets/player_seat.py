@@ -44,11 +44,10 @@ class PlayerSeat(QFrame):
         self.player = player
         self.role = role
 
-        # Kept for game logic / future use.
-        # It no longer controls the gold border.
+        # Controls which player currently has the turn.
         self.active = active
 
-        # Only this controls the gold border.
+        # Identifies the dealer separately.
         self.dealer = dealer
 
         self.hand_orientation = hand_orientation
@@ -407,20 +406,31 @@ class PlayerSeat(QFrame):
 
             self.update_hand_layout()
 
-    # =====================================================
+        # =====================================================
     # STYLE
     # =====================================================
+
+    def set_active(self, active):
+        """
+        Update whether this player currently has the bidding turn.
+        """
+
+        self.active = active
+
+        # Re-apply the style so the gold border moves.
+        self.setStyleSheet(self.get_style())
 
     def get_style(self):
 
         # -------------------------------------------------
-        # DEALER
+        # ACTIVE PLAYER
         # -------------------------------------------------
         #
-        # ONLY the dealer receives the gold border.
+        # The player currently placing a bid gets the
+        # gold border.
         #
 
-        if self.dealer:
+        if self.active:
 
             return """
                 QFrame#playerSeat {
