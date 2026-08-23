@@ -1,13 +1,28 @@
 """
 Play screen for BridgeTut.
 
-Day 1 version:
-- Displays the four hands.
-- Displays the central trick area.
-- Displays contract/game information.
-- Results button is visual only for now.
+Displays the four hands and the central trick area.
+
+The Play page does not create a new deal when a completed auction
+has been supplied by the main window. It uses the same players/deal
+that was used during bidding and displays the actual contract and
+declarer.
+
+Expected data on the main window:
+
+    window.play_data = {
+        "players": self.players,
+        "dealer": self.dealer,
+        "contract": final_bid,
+        "declarer": declarer,
+        "history": self.bidding_system.history,
+    }
+
+A fallback deal is kept so that the Play page can still be opened
+directly while the rest of the application is being developed.
 """
 
+from bidding.bid import Denomination
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget,
@@ -30,13 +45,97 @@ class PlayPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.players = new_deal(
-            dealer=Position.SOUTH,
-            seed=42,
-        )
+        # Game data supplied by BiddingPage/MainWindow.
+        self.players = None
+        self.dealer = None
+        self.contract = None
+        self.declarer = None
+        self.history = []
+        self.current_player = None
 
-        self.setup_ui()
+        self.player_seats = {}
 
+        # References to labels that must change when a game is loaded.
+        self.contract_title = None
+        self.declarer_value = None
+        self.leader_value = None
+        self.trick_value = None
+        self.game_log = None
+        self.trump = None
+        self.trump_subtitle = None
+
+        self.setup_complete = False
+
+    # =====================================================
+    # LOAD GAME
+    # =====================================================
+
+    def showEvent(self, event):
+
+        super().showEvent(event)
+
+        self.load_game()
+
+    def load_game(self):
+
+        window = self.window()
+
+        # -------------------------------------------------
+        # USE THE GAME CREATED DURING BIDDING
+        # -------------------------------------------------
+
+        if hasattr(window, "play_data"):
+
+            data = window.play_data
+
+            self.players = data.get("players")
+            self.dealer = data.get("dealer")
+            self.contract = data.get("contract")
+            self.declarer = data.get("declarer")
+            self.history = data.get("history", [])
+            
+            print("PLAY CONTRACT:", self.contract)
+            print("PLAY DECLARER:", self.declarer)
+        # -------------------------------------------------
+        # FALLBACK FOR OPENING PLAY DIRECTLY
+        # -------------------------------------------------
+        #
+        # This keeps the page visible while the project is
+        # being developed. It is NOT used when play_data
+        # has been supplied by BiddingPage.
+        #
+
+        if self.players is None:
+
+            self.dealer = Position.SOUTH
+
+            self.players = new_deal(
+                dealer=self.dealer,
+                seed=42,
+            )
+
+        # -------------------------------------------------
+        # CREATE THE UI ONLY AFTER WE HAVE A DEAL
+        # -------------------------------------------------
+
+        if not self.setup_complete:
+
+            self.setup_ui()
+
+            self.setup_complete = True
+
+        # -------------------------------------------------
+        # UPDATE DYNAMIC GAME INFORMATION
+        # -------------------------------------------------
+        self.current_player = self.get_leader()
+        self.update_game_info()
+    def update_active_player(self):
+
+        for position, seat in self.player_seats.items():
+
+            seat.set_active(
+                position == self.current_player
+            )
     # =====================================================
     # UI
     # =====================================================
@@ -76,53 +175,48 @@ class PlayPage(QWidget):
         table_layout.setSpacing(0)
 
         # -------------------------------------------------
-        # NORTH
+        # DETERMINE PLAYER ROLES
         # -------------------------------------------------
 
         north = PlayerSeat(
             self.players[Position.NORTH],
-            role="Defender",
+            role=self.player_role(Position.NORTH),
             hand_orientation="horizontal",
         )
 
         north.setFixedHeight(120)
 
-        # -------------------------------------------------
-        # WEST
-        # -------------------------------------------------
-
         west = PlayerSeat(
             self.players[Position.WEST],
-            role="Dummy",
+            role=self.player_role(Position.WEST),
             hand_orientation="vertical",
         )
 
         west.setFixedWidth(155)
 
-        # -------------------------------------------------
-        # EAST
-        # -------------------------------------------------
-
         east = PlayerSeat(
             self.players[Position.EAST],
-            role="Declarer",
+            role=self.player_role(Position.EAST),
             hand_orientation="vertical",
         )
 
         east.setFixedWidth(155)
 
-        # -------------------------------------------------
-        # SOUTH
-        # -------------------------------------------------
-
         south = PlayerSeat(
             self.players[Position.SOUTH],
-            role="Defender",
-            active=True,
+            role=self.player_role(Position.SOUTH),
+            active=False,
             hand_orientation="horizontal",
         )
 
         south.setFixedHeight(120)
+
+        self.player_seats = {
+            Position.NORTH: north,
+            Position.EAST: east,
+            Position.SOUTH: south,
+            Position.WEST: west,
+        }
 
         # -------------------------------------------------
         # CENTRE TRICK
@@ -235,34 +329,43 @@ class PlayPage(QWidget):
             14
         )
 
-        contract_title = QLabel(
-            "4NT by E"
+        self.contract_title = QLabel(
+            self.contract_text()
         )
 
-        contract_title.setObjectName(
+        self.contract_title.setObjectName(
             "contractTitle"
         )
 
         contract_layout.addWidget(
-            contract_title
+            self.contract_title
         )
 
         self.add_side_row(
             contract_layout,
             "DECLARER",
-            "East"
+            self.position_name(self.declarer)
+            if self.declarer is not None
+            else "—",
+            "declarer_value"
         )
+
+        leader = self.get_leader()
 
         self.add_side_row(
             contract_layout,
             "LEAD / TURN",
-            "South"
+            self.position_name(leader)
+            if leader is not None
+            else "—",
+            "leader_value"
         )
 
         self.add_side_row(
             contract_layout,
             "TRICK",
-            "1 / 13"
+            "1 / 13",
+            "trick_value"
         )
 
         sidebar_layout.addWidget(
@@ -277,20 +380,20 @@ class PlayPage(QWidget):
 
         scores.setSpacing(12)
 
-        declarer = self.create_score_box(
+        declarer_score = self.create_score_box(
             "DECLARER",
             "0",
             "NEED 10"
         )
 
-        defence = self.create_score_box(
+        defence_score = self.create_score_box(
             "DEFENCE",
             "0",
             "NEED 4"
         )
 
-        scores.addWidget(declarer)
-        scores.addWidget(defence)
+        scores.addWidget(declarer_score)
+        scores.addWidget(defence_score)
 
         sidebar_layout.addLayout(
             scores
@@ -327,19 +430,16 @@ class PlayPage(QWidget):
             log_title
         )
 
-        messages = QLabel(
-            "> Cards dealt. N is the dealer and\n"
-            "bids first.\n\n"
-            "> Bidding complete — 4NT by E.\n\n"
-            "> S leads to trick 1."
-        )
+        self.game_log = QLabel()
 
-        messages.setObjectName(
+        self.game_log.setObjectName(
             "gameLog"
         )
 
+        self.game_log.setWordWrap(True)
+
         log_layout.addWidget(
-            messages
+            self.game_log
         )
 
         sidebar_layout.addWidget(
@@ -375,6 +475,253 @@ class PlayPage(QWidget):
         self.setStyleSheet(
             self.get_style()
         )
+
+    # =====================================================
+    # GAME INFORMATION
+    # =====================================================
+
+    def update_game_info(self):
+
+        if self.contract_title is None:
+            return
+
+        # -------------------------------------------------
+        # CONTRACT
+        # -------------------------------------------------
+
+        self.contract_title.setText(
+            self.contract_text()
+        )
+
+        # -------------------------------------------------
+        # DECLARER
+        # -------------------------------------------------
+
+        if self.declarer_value is not None:
+
+            if self.declarer is None:
+
+                self.declarer_value.setText("—")
+
+            else:
+
+                self.declarer_value.setText(
+                    self.position_name(
+                        self.declarer
+                    )
+                )
+
+        # -------------------------------------------------
+        # OPENING LEADER
+        # -------------------------------------------------
+
+        leader = self.get_leader()
+
+        if self.leader_value is not None:
+
+            if leader is None:
+
+                self.leader_value.setText("—")
+
+            else:
+
+                self.leader_value.setText(
+                    self.position_name(
+                        leader
+                    )
+                )
+
+        # -------------------------------------------------
+        # TRICK
+        # -------------------------------------------------
+
+        if self.trick_value is not None:
+
+            self.trick_value.setText(
+                "1 / 13"
+            )
+
+        # -------------------------------------------------
+        # TRUMP
+        # -------------------------------------------------
+
+        if self.contract is not None:
+
+            denomination = self.contract.denomination
+
+            symbol_map = {
+                Denomination.CLUBS: "♣",
+                Denomination.DIAMONDS: "♦",
+                Denomination.HEARTS: "♥",
+                Denomination.SPADES: "♠",
+                Denomination.NO_TRUMP: "NT",
+            }
+
+            if self.trump is not None:
+
+                self.trump.setText(
+                    symbol_map.get(
+                        denomination,
+                        "?"
+                    )
+                )
+
+            if self.trump_subtitle is not None:
+
+                if denomination == Denomination.NO_TRUMP:
+
+                    self.trump_subtitle.setText(
+                        "NO TRUMP"
+                    )
+
+                else:
+
+                    self.trump_subtitle.setText(
+                        "TRUMP"
+                    )
+
+        # -------------------------------------------------
+        # GAME LOG
+        # -------------------------------------------------
+
+        if self.game_log is not None:
+
+            dealer_text = (
+                self.position_name(self.dealer)
+                if self.dealer is not None
+                else "—"
+            )
+
+            if self.contract is not None:
+
+                contract_text = self.contract_text()
+
+            else:
+
+                contract_text = "No contract"
+
+            leader_text = (
+                self.position_name(leader)
+                if leader is not None
+                else "—"
+            )
+
+            self.game_log.setText(
+                f"> Cards dealt. {dealer_text[0]} is the dealer "
+                f"and bids first.\n\n"
+                f"> Bidding complete — {contract_text}.\n\n"
+                f"> {leader_text[0] if leader_text != '—' else '—'} "
+                f"leads to trick 1."
+            )
+
+            self.update_active_player()
+    def set_active(self, active):
+
+        self.active = active
+        self.update_style()
+    def contract_text(self):
+
+        if self.contract is None:
+
+            return "No Contract"
+
+        declarer_letter = (
+            self.position_letter(
+                self.declarer
+            )
+            if self.declarer is not None
+            else "?"
+        )
+
+        return (
+            f"{self.contract.level}"
+            f"{self.contract.denomination.short}"
+            f" by {declarer_letter}"
+        )
+
+    # =====================================================
+    # PLAYER / POSITION HELPERS
+    # =====================================================
+
+    def get_partner(self, position):
+
+        partners = {
+            Position.NORTH: Position.SOUTH,
+            Position.SOUTH: Position.NORTH,
+            Position.EAST: Position.WEST,
+            Position.WEST: Position.EAST,
+        }
+
+        return partners.get(position)
+
+    def player_role(self, position):
+
+        if self.declarer is None:
+
+            return "Defender"
+
+        if position == self.declarer:
+
+            return "Declarer"
+
+        if position == self.get_partner(
+            self.declarer
+        ):
+
+            return "Dummy"
+
+        return "Defender"
+
+    def get_leader(self):
+
+        if self.declarer is None:
+
+            return None
+
+        # In bridge, the opening lead is made by the
+        # player to the left of the declarer.
+        order = [
+            Position.NORTH,
+            Position.EAST,
+            Position.SOUTH,
+            Position.WEST,
+        ]
+
+        index = order.index(
+            self.declarer
+        )
+
+        return order[
+            (index + 3) % 4
+        ]
+
+    @staticmethod
+    def position_name(position):
+
+        if position is None:
+
+            return "—"
+
+        return {
+            Position.NORTH: "North",
+            Position.EAST: "East",
+            Position.SOUTH: "South",
+            Position.WEST: "West",
+        }[position]
+
+    @staticmethod
+    def position_letter(position):
+
+        if position is None:
+
+            return "?"
+
+        return {
+            Position.NORTH: "N",
+            Position.EAST: "E",
+            Position.SOUTH: "S",
+            Position.WEST: "W",
+        }[position]
 
     # =====================================================
     # TRICK AREA
@@ -454,33 +801,18 @@ class PlayPage(QWidget):
 
         layout = QVBoxLayout(widget)
 
-        layout.setAlignment(
-            Qt.AlignCenter
-        )
+        layout.setAlignment(Qt.AlignCenter)
 
-        trump = QLabel(
-            "NT"
-        )
+        self.trump = QLabel("NT")
+        self.trump.setObjectName("trump")
+        self.trump.setAlignment(Qt.AlignCenter)
 
-        trump.setObjectName(
-            "trump"
-        )
+        self.trump_subtitle = QLabel("TRUMP")
+        self.trump_subtitle.setObjectName("trumpSubtitle")
+        self.trump_subtitle.setAlignment(Qt.AlignCenter)
 
-        subtitle = QLabel(
-            "TRUMP"
-        )
-
-        subtitle.setObjectName(
-            "trumpSubtitle"
-        )
-
-        layout.addWidget(
-            trump
-        )
-
-        layout.addWidget(
-            subtitle
-        )
+        layout.addWidget(self.trump)
+        layout.addWidget(self.trump_subtitle)
 
         return widget
 
@@ -493,17 +825,22 @@ class PlayPage(QWidget):
         layout,
         label,
         value,
+        key=None,
     ):
 
         row = QHBoxLayout()
 
-        left = QLabel(label)
+        left = QLabel(
+            label
+        )
 
         left.setObjectName(
             "sideLabel"
         )
 
-        right = QLabel(value)
+        right = QLabel(
+            value
+        )
 
         right.setObjectName(
             "sideValue"
@@ -512,6 +849,14 @@ class PlayPage(QWidget):
         right.setAlignment(
             Qt.AlignRight
         )
+
+        if key is not None:
+
+            setattr(
+                self,
+                key,
+                right
+            )
 
         row.addWidget(left)
         row.addWidget(right)
@@ -537,19 +882,25 @@ class PlayPage(QWidget):
             Qt.AlignCenter
         )
 
-        title_label = QLabel(title)
+        title_label = QLabel(
+            title
+        )
 
         title_label.setObjectName(
             "scoreTitle"
         )
 
-        score_label = QLabel(score)
+        score_label = QLabel(
+            score
+        )
 
         score_label.setObjectName(
             "score"
         )
 
-        needed_label = QLabel(needed)
+        needed_label = QLabel(
+            needed
+        )
 
         needed_label.setObjectName(
             "needed"

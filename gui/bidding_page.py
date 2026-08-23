@@ -978,7 +978,100 @@ class BiddingPage(QWidget):
     # =====================================================
     # FINISH AUCTION
     # =====================================================
+    def get_declarer(self):
 
+        final_bid = self.bidding_system.highest_bid
+
+        if final_bid is None:
+            return None
+
+        # The declarer is the first player from the declaring
+        # partnership who made the final denomination bid.
+        for position, bid in self.bidding_system.history:
+
+            if bid is None:
+                continue
+
+            if (
+                bid.denomination
+                == final_bid.denomination
+            ):
+
+                # Same partnership as the player who made
+                # the final bid.
+                if (
+                    position.value == self.position_partner(
+                        position
+                    )
+                ):
+                    return position
+
+        return None
+    def get_declarer(self):
+
+        final_bid = self.bidding_system.highest_bid
+
+        if final_bid is None:
+            return None
+
+        # Find the player who made the final bid.
+        final_bidder = None
+
+        for position, bid in self.bidding_system.history:
+
+            if bid == final_bid:
+                final_bidder = position
+
+        if final_bidder is None:
+            return None
+
+        # Find the first player from the same partnership
+        # who bid the final denomination.
+        for position, bid in self.bidding_system.history:
+
+            if bid is None:
+                continue
+
+            if bid.denomination != final_bid.denomination:
+                continue
+
+            if self.same_partnership(
+                position,
+                final_bidder
+            ):
+                return position
+
+        return final_bidder
+
+    def same_partnership(
+        self,
+        first,
+        second,
+    ):
+
+        return (
+            first == second
+            or
+            (
+                first == Position.NORTH
+                and second == Position.SOUTH
+            )
+            or
+            (
+                first == Position.SOUTH
+                and second == Position.NORTH
+            )
+            or
+            (
+                first == Position.EAST
+                and second == Position.WEST
+            )
+            or
+            (
+                first == Position.WEST
+                and second == Position.EAST
+            )
+        )
     def finish_auction(self):
 
         # Prevent further input.
@@ -987,14 +1080,30 @@ class BiddingPage(QWidget):
         self.update_bidding_ui()
 
         # -------------------------------------------------
-        # NAVIGATE TO PLAY
+        # DETERMINE FINAL CONTRACT
         # -------------------------------------------------
-        #
-        # MainWindow owns the navigation stack.
-        # Find it through the parent hierarchy.
-        #
+
+        final_bid = self.bidding_system.highest_bid
+
+        declarer = self.get_declarer()
+
+        # -------------------------------------------------
+        # STORE GAME DATA ON MAIN WINDOW
+        # -------------------------------------------------
 
         window = self.window()
+
+        window.play_data = {
+            "players": self.players,
+            "dealer": self.dealer,
+            "contract": final_bid,
+            "declarer": declarer,
+            "history": self.bidding_system.history,
+        }
+
+        # -------------------------------------------------
+        # NAVIGATE TO PLAY
+        # -------------------------------------------------
 
         if hasattr(
             window,

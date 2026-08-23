@@ -1,10 +1,3 @@
-"""
-Main application window for BridgeTut.
-
-This module controls the main desktop window and navigation
-between the different sections of the application.
-"""
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QMainWindow,
@@ -18,6 +11,7 @@ from PySide6.QtWidgets import (
 
 from .home_page import HomePage
 from .bidding_page import BiddingPage
+from .play_page import PlayPage
 from .placeholder_page import PlaceholderPage
 
 
@@ -32,12 +26,12 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("BridgeTut")
 
-        # Target size based on the reference GUI
         self.resize(1248, 856)
-
-        # Prevent the window from becoming smaller than
-        # the layouts can comfortably support.
         self.setMinimumSize(1000, 700)
+
+        # Data passed from Bidding -> Play.
+        # BiddingPage will fill this when the auction finishes.
+        self.play_data = None
 
         self.setStyleSheet(self.get_stylesheet())
 
@@ -56,13 +50,7 @@ class MainWindow(QMainWindow):
 
         main_layout = QVBoxLayout(central_widget)
 
-        main_layout.setContentsMargins(
-            0,
-            0,
-            0,
-            0
-        )
-
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
         # -------------------------------------------------
@@ -74,13 +62,7 @@ class MainWindow(QMainWindow):
 
         nav_layout = QHBoxLayout(navigation)
 
-        nav_layout.setContentsMargins(
-            20,
-            0,
-            20,
-            0
-        )
-
+        nav_layout.setContentsMargins(20, 0, 20, 0)
         nav_layout.setSpacing(8)
 
         # -------------------------------------------------
@@ -101,7 +83,6 @@ class MainWindow(QMainWindow):
 
         nav_layout.addWidget(page_title)
 
-        # Push navigation buttons to the right
         nav_layout.addStretch()
 
         # -------------------------------------------------
@@ -122,21 +103,15 @@ class MainWindow(QMainWindow):
         for name in pages:
 
             button = QPushButton(name)
-
             button.setObjectName("navButton")
+            button.setCursor(Qt.PointingHandCursor)
 
-            button.setCursor(
-                Qt.PointingHandCursor
-            )
-
-            # Capture the current page name
             button.clicked.connect(
                 lambda checked=False, page=name:
                 self.navigate(page)
             )
 
             self.nav_buttons[name] = button
-
             nav_layout.addWidget(button)
 
         main_layout.addWidget(navigation)
@@ -158,9 +133,7 @@ class MainWindow(QMainWindow):
             self.navigate("Bidding")
         )
 
-        self.pages.addWidget(
-            self.home_page
-        )
+        self.pages.addWidget(self.home_page)
 
         # -------------------------------------------------
         # DEAL
@@ -171,9 +144,7 @@ class MainWindow(QMainWindow):
             "Deal screen will be connected to the Deck."
         )
 
-        self.pages.addWidget(
-            self.deal_page
-        )
+        self.pages.addWidget(self.deal_page)
 
         # -------------------------------------------------
         # BIDDING
@@ -181,22 +152,20 @@ class MainWindow(QMainWindow):
 
         self.bidding_page = BiddingPage()
 
-        self.pages.addWidget(
-            self.bidding_page
-        )
+        self.pages.addWidget(self.bidding_page)
 
         # -------------------------------------------------
         # PLAY
         # -------------------------------------------------
+        #
+        # IMPORTANT:
+        # This used to be PlaceholderPage.
+        # It is now the actual PlayPage.
+        #
 
-        self.play_page = PlaceholderPage(
-            "Play",
-            "Play screen will be connected to the game logic."
-        )
+        self.play_page = PlayPage()
 
-        self.pages.addWidget(
-            self.play_page
-        )
+        self.pages.addWidget(self.play_page)
 
         # -------------------------------------------------
         # RESULTS
@@ -207,9 +176,7 @@ class MainWindow(QMainWindow):
             "Results screen will be connected to scoring."
         )
 
-        self.pages.addWidget(
-            self.results_page
-        )
+        self.pages.addWidget(self.results_page)
 
         # -------------------------------------------------
         # HISTORY
@@ -220,14 +187,10 @@ class MainWindow(QMainWindow):
             "Game history will appear here."
         )
 
-        self.pages.addWidget(
-            self.history_page
-        )
+        self.pages.addWidget(self.history_page)
 
-        # Save reference to page title
         self.page_title = page_title
 
-        # Start on Home
         self.navigate("Home")
 
     # =====================================================
@@ -248,17 +211,14 @@ class MainWindow(QMainWindow):
         if page_name not in page_indexes:
             return
 
-        # Change page
         self.pages.setCurrentIndex(
             page_indexes[page_name]
         )
 
-        # Change title
         self.page_title.setText(
             page_name
         )
 
-        # Update active navigation button
         for name, button in self.nav_buttons.items():
 
             button.setProperty(
@@ -266,9 +226,12 @@ class MainWindow(QMainWindow):
                 name == page_name
             )
 
-            # Force stylesheet refresh
             button.style().unpolish(button)
             button.style().polish(button)
+
+        # Make sure Play receives the latest bidding data.
+        if page_name == "Play":
+            self.play_page.load_game()
 
     # =====================================================
     # APPLICATION STYLE
@@ -379,7 +342,6 @@ class MainWindow(QMainWindow):
         ================================================= */
 
         QLabel {
-
             color: #f1f4f2;
         }
 
