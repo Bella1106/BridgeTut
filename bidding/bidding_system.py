@@ -50,6 +50,9 @@ class BiddingSystem:
         if not isinstance(player, Position):
             raise TypeError("Player must be a Position")
 
+        if not isinstance(bid, Bid):
+            raise TypeError("Bid must be a valid bid")
+
         if self.auction_finished:
             return False
 

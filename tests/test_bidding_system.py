@@ -224,3 +224,88 @@ def test_invalid_player_cannot_pass():
 
     with pytest.raises(TypeError):
         system.make_pass("South")
+
+"post gui merge tests to cover potential gaps"
+def test_invalid_bid_type_rejected():
+    system = BiddingSystem(Position.SOUTH)
+
+
+    with pytest.raises(TypeError):
+        system.make_bid(Position.SOUTH, "1H")
+
+def test_rejected_bid_does_not_change_auction_state():
+    system = BiddingSystem(Position.SOUTH)
+
+    original_bid = Bid(2, Denomination.HEARTS)
+    system.make_bid(Position.SOUTH, original_bid)
+
+    original_history = system.history.copy()
+    original_player = system.current_player
+    original_passes = system.consecutive_passes
+
+    result = system.make_bid(Position.WEST, Bid(2, Denomination.CLUBS))
+
+    assert result is False
+    assert system.highest_bid == original_bid
+    assert system.history == original_history
+    assert system.current_player == original_player
+    assert system.consecutive_passes == original_passes
+    assert system.auction_finished is False
+
+def test_out_of_turn_pass_rejected_without_state_change():
+    system = BiddingSystem(Position.SOUTH)
+
+    result = system.make_pass(Position.NORTH)
+
+    assert result is False
+    assert system.history == []
+    assert system.current_player == Position.SOUTH
+    assert system.consecutive_passes == 0
+    assert system.auction_finished is False
+
+def test_seven_no_trump_valid_highest_bid():
+    system = BiddingSystem(Position.SOUTH)
+    highest_possible_bid = Bid(7, Denomination.NO_TRUMP)
+
+    result = system.make_bid(Position.SOUTH, highest_possible_bid)
+
+    assert result is True
+    assert system.highest_bid == highest_possible_bid
+
+def test_no_contract_bid_can_outrank_seven_no_trump():
+    system = BiddingSystem(Position.SOUTH)
+
+    system.make_bid(Position.SOUTH, Bid(7, Denomination.NO_TRUMP))
+
+    for level in range(1,8):
+        for denomination in Denomination:
+            assert system.is_valid_bid(Bid(level, denomination)) is False
+
+def test_mixed_auction_sequence():
+    system = BiddingSystem(Position.SOUTH)
+
+    one_club = Bid(1, Denomination.CLUBS)
+    one_heart = Bid(1, Denomination.HEARTS)
+    two_clubs = Bid(2, Denomination.CLUBS)
+
+    assert system.make_bid(Position.SOUTH, one_club) is True
+    assert system.make_pass(Position.WEST) is True
+    assert system.make_bid(Position.NORTH, one_heart) is True
+    assert system.make_bid(Position.EAST, two_clubs) is True
+    assert system.make_pass(Position.SOUTH) is True
+    assert system.make_pass(Position.WEST) is True
+    assert system.make_pass(Position.NORTH) is True
+
+    assert system.auction_finished is True
+    assert system.highest_bid == two_clubs
+    assert system.consecutive_passes == 3
+
+    assert system.history == [
+        (Position.SOUTH, one_club),
+        (Position.WEST, None),
+        (Position.NORTH, one_heart),
+        (Position.EAST, two_clubs),
+        (Position.SOUTH, None),
+        (Position.WEST, None),
+        (Position.NORTH, None),
+    ]
