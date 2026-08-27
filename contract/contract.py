@@ -16,6 +16,7 @@ from bidding.bid import Bid, Denomination
 from bidding.bidding_system import BiddingSystem
 from card_model.card import Suit
 from card_model.player import Position
+from game_logic.declarer import determine_declarer
 
 _DENOMINATION_TO_TRUMP_SUIT = {
     Denomination.CLUBS: Suit.CLUBS,
@@ -56,35 +57,6 @@ class Contract:
 
     def __repr__(self) -> str:
         return f"{self.bid} by {self.declarer}"
-
-
-def determine_declarer(system: BiddingSystem) -> Position | None:
-    """The declarer is the first player, from the partnership that won
-    the auction, to have named the winning denomination -- not
-    necessarily whoever made the final/highest bid.
-
-    Returns None if no bid was ever made (auction passed out).
-    """
-    final_bid = system.highest_bid
-    if final_bid is None:
-        return None
-
-    final_bidder = next(
-        (position for position, bid in system.history if bid == final_bid),
-        None,
-    )
-    if final_bidder is None:
-        return None
-
-    for position, bid in system.history:
-        if bid is None:
-            continue
-        if bid.denomination != final_bid.denomination:
-            continue
-        if position == final_bidder or position.partner == final_bidder:
-            return position
-
-    return final_bidder
 
 
 def determine_contract(system: BiddingSystem) -> Contract | None:
