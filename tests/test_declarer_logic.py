@@ -2,7 +2,7 @@ from bidding.bid import Bid, Denomination
 from bidding.bidding_system import BiddingSystem
 from card_model.player import Position
 
-from game_logic.declarer import (determine_declarer, determine_opening_leader)
+from game_logic.declarer import (determine_declarer, determine_opening_leader, determine_next_player)
 
 # =====================================================
 # DECLARER TESTS
@@ -76,5 +76,19 @@ def test_opening_leader_left_of_west():
 def test_no_declarer_has_no_opening_leader():
     assert determine_opening_leader(None) is None
 
+# =====================================================
+# PLAY ORDER TESTS
+# =====================================================
 
+def test_next_player_after_south_is_west():
+    assert (determine_opening_leader(Position.SOUTH) == Position.WEST)
+
+def test_next_player_after_west_is_north():
+    assert (determine_opening_leader(Position.WEST) == Position.NORTH)
+
+def test_next_player_after_north_is_east():
+    assert (determine_opening_leader(Position.NORTH) == Position.EAST)
+
+def test_next_player_after_east_is_south():
+    assert (determine_opening_leader(Position.EAST) == Position.SOUTH)
 

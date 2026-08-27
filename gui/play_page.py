@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
 
 from card_model.deck import new_deal
 from card_model.player import Position
+from game_logic.declarer import determine_opening_leader
 
 from .widgets.player_seat import PlayerSeat
 
@@ -673,27 +674,7 @@ class PlayPage(QWidget):
         return "Defender"
 
     def get_leader(self):
-
-        if self.declarer is None:
-
-            return None
-
-        # In bridge, the opening lead is made by the
-        # player to the left of the declarer.
-        order = [
-            Position.NORTH,
-            Position.EAST,
-            Position.SOUTH,
-            Position.WEST,
-        ]
-
-        index = order.index(
-            self.declarer
-        )
-
-        return order[
-            (index + 3) % 4
-        ]
+        return determine_opening_leader(self.declarer)
 
     @staticmethod
     def position_name(position):

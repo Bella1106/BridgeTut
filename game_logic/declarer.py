@@ -9,6 +9,7 @@ The opening leader is the player immediately to the left of the declarer.
 
 from bidding.bidding_system import BiddingSystem
 from card_model.player import Position
+from card_model.deck import seating_order_from
 
 def determine_declarer(
         bidding_system: BiddingSystem, 
@@ -60,3 +61,12 @@ def determine_opening_leader(
     }
 
     return opening_leader[declarer]
+
+def determine_next_player(
+        current_player: Position
+) -> Position:
+
+    turn_order = seating_order_from(current_player)
+
+    return turn_order[1]
+
