@@ -978,35 +978,7 @@ class BiddingPage(QWidget):
     # =====================================================
     # FINISH AUCTION
     # =====================================================
-    def get_declarer(self):
-
-        final_bid = self.bidding_system.highest_bid
-
-        if final_bid is None:
-            return None
-
-        # The declarer is the first player from the declaring
-        # partnership who made the final denomination bid.
-        for position, bid in self.bidding_system.history:
-
-            if bid is None:
-                continue
-
-            if (
-                bid.denomination
-                == final_bid.denomination
-            ):
-
-                # Same partnership as the player who made
-                # the final bid.
-                if (
-                    position.value == self.position_partner(
-                        position
-                    )
-                ):
-                    return position
-
-        return None
+    
     def get_declarer(self):
 
         final_bid = self.bidding_system.highest_bid
