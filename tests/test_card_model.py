@@ -14,8 +14,11 @@ team will depend on: 52 unique cards, 13 each, no overlap, correct
 seating order, and correct trick-winning logic (both NT and trump games).
 """
 
+import pytest
+
 from card_model.card import Card, Rank, Suit
 from card_model.deck import Deck, new_deal, seating_order_from
+from card_model.hand import Hand
 from card_model.player import Player, Position
 
 
@@ -97,6 +100,72 @@ def test_new_deal_convenience_function():
     assert set(table.keys()) == {Position.NORTH, Position.SOUTH,
                                   Position.EAST, Position.WEST}
     assert all(len(p.hand) == 13 for p in table.values())
+
+
+def test_shuffle_is_deterministic_given_same_seed():
+    "same seed must reproduce the same shuffle -- required for repeatable deals/replays"
+    first = Deck(seed=99)
+    first.shuffle()
+    second = Deck(seed=99)
+    second.shuffle()
+
+    assert first.cards == second.cards
+
+
+def test_deal_order_depends_on_dealer_not_just_seed():
+    "same seed but a different dealer must still change who gets what"
+    from_south = new_deal(dealer=Position.SOUTH, seed=5)
+    from_north = new_deal(dealer=Position.NORTH, seed=5)
+
+    assert (sorted(from_south[Position.SOUTH].hand)
+            != sorted(from_north[Position.SOUTH].hand))
+
+
+def test_hand_remove_missing_card_raises():
+    "deliberate: playing a card you don't hold should fail loudly, not silently"
+    hand = Hand([Card(Rank.TWO, Suit.CLUBS)])
+
+    with pytest.raises(ValueError):
+        hand.remove(Card(Rank.ACE, Suit.SPADES))
+
+
+def test_hand_remove_removes_only_the_given_card():
+    kept = Card(Rank.TWO, Suit.CLUBS)
+    played = Card(Rank.ACE, Suit.SPADES)
+    hand = Hand([kept, played])
+
+    hand.remove(played)
+
+    assert list(hand) == [kept]
+    assert played not in hand
+
+
+def test_hand_has_suit_reflects_current_contents():
+    hand = Hand([Card(Rank.TWO, Suit.CLUBS)])
+
+    assert hand.has_suit(Suit.CLUBS)
+    assert not hand.has_suit(Suit.HEARTS)
+
+    hand.remove(Card(Rank.TWO, Suit.CLUBS))
+
+    assert not hand.has_suit(Suit.CLUBS)
+
+
+def test_card_equality_against_non_card_is_false_not_an_error():
+    card = Card(Rank.ACE, Suit.SPADES)
+
+    assert card != "AS"
+    assert card != 14
+
+
+def test_card_repr_matches_short_notation():
+    assert repr(Card(Rank.ACE, Suit.SPADES)) == "AS"
+    assert repr(Card(Rank.TEN, Suit.CLUBS)) == "10C"
+
+
+def test_position_str_is_single_letter():
+    assert str(Position.NORTH) == "N"
+    assert str(Position.SOUTH) == "S"
 
 
 if __name__ == "__main__":
