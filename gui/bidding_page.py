@@ -21,9 +21,9 @@ from PySide6.QtWidgets import (
 
 from bidding.bid import Bid, Denomination
 from bidding.bidding_system import BiddingSystem
-
 from card_model.deck import new_deal
 from card_model.player import Position
+from game_logic.declarer import determine_declarer
 
 from .widgets.player_seat import PlayerSeat
 
@@ -979,71 +979,6 @@ class BiddingPage(QWidget):
     # FINISH AUCTION
     # =====================================================
     
-    def get_declarer(self):
-
-        final_bid = self.bidding_system.highest_bid
-
-        if final_bid is None:
-            return None
-
-        # Find the player who made the final bid.
-        final_bidder = None
-
-        for position, bid in self.bidding_system.history:
-
-            if bid == final_bid:
-                final_bidder = position
-
-        if final_bidder is None:
-            return None
-
-        # Find the first player from the same partnership
-        # who bid the final denomination.
-        for position, bid in self.bidding_system.history:
-
-            if bid is None:
-                continue
-
-            if bid.denomination != final_bid.denomination:
-                continue
-
-            if self.same_partnership(
-                position,
-                final_bidder
-            ):
-                return position
-
-        return final_bidder
-
-    def same_partnership(
-        self,
-        first,
-        second,
-    ):
-
-        return (
-            first == second
-            or
-            (
-                first == Position.NORTH
-                and second == Position.SOUTH
-            )
-            or
-            (
-                first == Position.SOUTH
-                and second == Position.NORTH
-            )
-            or
-            (
-                first == Position.EAST
-                and second == Position.WEST
-            )
-            or
-            (
-                first == Position.WEST
-                and second == Position.EAST
-            )
-        )
     def finish_auction(self):
 
         # Prevent further input.
@@ -1057,7 +992,7 @@ class BiddingPage(QWidget):
 
         final_bid = self.bidding_system.highest_bid
 
-        declarer = self.get_declarer()
+        declarer = determine_declarer(self.bidding_system)
 
         # -------------------------------------------------
         # STORE GAME DATA ON MAIN WINDOW

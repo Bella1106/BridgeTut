@@ -2,7 +2,8 @@ from bidding.bid import Bid, Denomination
 from bidding.bidding_system import BiddingSystem
 from card_model.card import Suit
 from card_model.player import Position
-from contract.contract import Contract, determine_contract, determine_declarer
+from contract.contract import Contract, determine_contract
+from game_logic.declarer import determine_declarer
 
 
 def test_passed_out_auction_has_no_contract():
