@@ -83,9 +83,9 @@ class BiddingSystem:
         self.history.append((player, None))
         self.consecutive_passes += 1
 
-        # TODO: confirm all-passs restart behaviour with sponsor
-
-        if self.consecutive_passes == 3 and self.highest_bid is not None:
+        if self.highest_bid is None and self.consecutive_passes == 4:
+            self.auction_finished = True
+        elif self.highest_bid is not None and self.consecutive_passes == 3:
             self.auction_finished = True
         else:
             self._advance_turn()
