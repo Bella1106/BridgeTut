@@ -15,10 +15,15 @@ from PySide6.QtWidgets import (
 
 class HomePage(QWidget):
 
-    def __init__(self, new_game_callback=None):
+    def __init__(
+        self,
+        new_game_callback=None,
+        history_callback=None,
+    ):
         super().__init__()
 
         self.new_game_callback = new_game_callback
+        self.history_callback = history_callback
 
         self.setup_ui()
 
@@ -172,6 +177,7 @@ class HomePage(QWidget):
             "Open a previously saved hand.",
         )
 
+        # Load Game is not implemented yet.
         load_game.setEnabled(
             False
         )
@@ -192,9 +198,17 @@ class HomePage(QWidget):
             "View contracts, results and scores.",
         )
 
-        history.setEnabled(
-            False
-        )
+        # IMPORTANT:
+        # Game History is now enabled.
+        #
+        # Clicking this button calls the callback supplied
+        # by MainWindow, which navigates to the History page.
+
+        if self.history_callback:
+
+            history.clicked.connect(
+                self.history_callback
+            )
 
         grid.addWidget(
             history,
@@ -493,3 +507,4 @@ class HomePage(QWidget):
     def close_application(self):
 
         QApplication.quit()
+

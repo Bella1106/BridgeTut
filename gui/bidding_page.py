@@ -8,8 +8,13 @@ It creates Bid objects and passes them to:
     BiddingSystem.make_bid()
     BiddingSystem.make_pass()
 
-When the auction finishes, the GUI creates the team's Contract
-object and passes the completed game data to PlayPage.
+When the auction finishes, the existing contract/declarer
+logic is used to determine the Contract.
+
+The GUI then passes the completed game data to PlayPage.
+
+The game is NOT saved to HistoryManager here.
+The game is saved by PlayPage.
 """
 
 from PySide6.QtCore import Qt
@@ -29,8 +34,6 @@ from bidding.bidding_system import BiddingSystem
 from card_model.deck import new_deal
 from card_model.player import Position
 
-# IMPORTANT:
-# contract.py is inside game_logic/contract/
 from contract.contract import determine_contract
 
 from .widgets.player_seat import PlayerSeat
@@ -45,18 +48,17 @@ class BiddingPage(QWidget):
         # DEALER
         # =================================================
 
-        # Dealer logic has not been implemented yet.
-        # South is temporarily always the dealer.
-
+        # Dealer logic has not been implemented by the team yet.
+        # South remains the temporary dealer.
         self.dealer = Position.SOUTH
 
         # =================================================
         # DEAL
         # =================================================
 
+        # IMPORTANT:
         # This exact deal is passed to PlayPage.
         # PlayPage must NOT create another deal.
-
         self.players = new_deal(
             dealer=self.dealer,
             seed=42,
@@ -74,24 +76,19 @@ class BiddingPage(QWidget):
         # UI REFERENCES
         # =================================================
 
-        # Store (Bid, QPushButton) pairs.
-        #
-        # IMPORTANT:
-        # Bid objects are not hashable, so they cannot be
-        # used directly as dictionary keys.
         self.bid_buttons = []
 
         self.pass_button = None
 
         self.info_values = {}
 
-        self.auction_empty = None
-
         self.auction_layout = None
+
+        self.auction_empty = None
 
         self.player_seats = {}
 
-        # Prevent finishing the same auction twice.
+        # Prevent finishing the auction twice.
         self.auction_completed = False
 
         # =================================================
@@ -114,7 +111,7 @@ class BiddingPage(QWidget):
             16,
             16,
             16,
-            16
+            16,
         )
 
         main_layout.setSpacing(16)
@@ -135,7 +132,7 @@ class BiddingPage(QWidget):
             14,
             14,
             14,
-            14
+            14,
         )
 
         table_layout.setSpacing(10)
@@ -169,76 +166,71 @@ class BiddingPage(QWidget):
         )
 
         south = PlayerSeat(
-                    self.players[Position.SOUTH],
-                    role="Dealer",
-                    active=False,
-                    dealer=False,
-                    hand_orientation="horizontal",
-                )
+            self.players[Position.SOUTH],
+            role="Dealer",
+            active=False,
+            dealer=False,
+            hand_orientation="horizontal",
+        )
 
         self.player_seats = {
             Position.NORTH: north,
             Position.EAST: east,
-            Position.WEST: west,
             Position.SOUTH: south,
-    
+            Position.WEST: west,
         }
 
         # -------------------------------------------------
         # TABLE POSITIONS
         # -------------------------------------------------
 
-        # Top-left
         table_layout.addWidget(
             north,
             0,
-            0
+            0,
         )
 
-        # Top-right
         table_layout.addWidget(
             east,
             0,
-            1
+            1,
         )
 
-        # Bottom-left
         table_layout.addWidget(
             west,
             1,
-            0
+            0,
         )
 
-        # Bottom-right
         table_layout.addWidget(
             south,
             1,
-            1
+            1,
         )
 
         table_layout.setColumnStretch(
             0,
-            1
+            1,
         )
 
         table_layout.setColumnStretch(
             1,
-            1
+            1,
         )
 
         table_layout.setRowStretch(
             0,
-            1
+            1,
         )
 
         table_layout.setRowStretch(
             1,
-            1
+            1,
         )
 
         main_layout.addWidget(
             table,
-            1
+            1,
         )
 
         # =================================================
@@ -255,7 +247,7 @@ class BiddingPage(QWidget):
             0,
             0,
             0,
-            0
+            0,
         )
 
         right_layout.setSpacing(14)
@@ -276,21 +268,21 @@ class BiddingPage(QWidget):
             16,
             14,
             16,
-            14
+            14,
         )
 
         self.add_info_row(
             info_layout,
             "DEALER",
             self.position_name(self.dealer),
-            "dealer"
+            "dealer",
         )
 
         self.add_info_row(
             info_layout,
             "VULNERABILITY",
             "Vulnerable",
-            "vulnerability"
+            "vulnerability",
         )
 
         self.add_info_row(
@@ -299,14 +291,14 @@ class BiddingPage(QWidget):
             self.position_name(
                 self.bidding_system.current_player
             ),
-            "to_call"
+            "to_call",
         )
 
         self.add_info_row(
             info_layout,
             "HIGHEST BID",
             "None",
-            "highest_bid"
+            "highest_bid",
         )
 
         right_layout.addWidget(info)
@@ -329,7 +321,7 @@ class BiddingPage(QWidget):
             16,
             16,
             16,
-            14
+            14,
         )
 
         bidding_layout.setSpacing(8)
@@ -376,7 +368,7 @@ class BiddingPage(QWidget):
 
                 bid = Bid(
                     level,
-                    denomination
+                    denomination,
                 )
 
                 button = QPushButton(
@@ -395,17 +387,6 @@ class BiddingPage(QWidget):
                     Qt.PointingHandCursor
                 )
 
-                # -------------------------------------------------
-                # IMPORTANT FIX
-                # -------------------------------------------------
-                #
-                # Do NOT do:
-                #
-                # self.bid_buttons[bid] = button
-                #
-                # Bid is unhashable.
-                #
-                # Instead, store the Bid and button together.
                 self.bid_buttons.append(
                     (bid, button)
                 )
@@ -422,9 +403,7 @@ class BiddingPage(QWidget):
                     button
                 )
 
-            bidding_layout.addLayout(
-                row
-            )
+            bidding_layout.addLayout(row)
 
         # =================================================
         # PASS / DOUBLE / REDOUBLE
@@ -508,7 +487,7 @@ class BiddingPage(QWidget):
             16,
             12,
             16,
-            12
+            12,
         )
 
         headings = QHBoxLayout()
@@ -568,12 +547,12 @@ class BiddingPage(QWidget):
 
         right_layout.addWidget(
             auction,
-            1
+            1,
         )
 
         main_layout.addWidget(
             right_panel,
-            0
+            0,
         )
 
         self.setStyleSheet(
@@ -594,17 +573,13 @@ class BiddingPage(QWidget):
 
         row = QHBoxLayout()
 
-        left = QLabel(
-            label
-        )
+        left = QLabel(label)
 
         left.setObjectName(
             "infoLabel"
         )
 
-        right = QLabel(
-            value
-        )
+        right = QLabel(value)
 
         right.setObjectName(
             "infoValue"
@@ -616,26 +591,17 @@ class BiddingPage(QWidget):
 
         self.info_values[key] = right
 
-        row.addWidget(
-            left
-        )
+        row.addWidget(left)
 
-        row.addWidget(
-            right
-        )
+        row.addWidget(right)
 
-        layout.addLayout(
-            row
-        )
+        layout.addLayout(row)
 
     # =====================================================
     # BID CLICK
     # =====================================================
 
-    def on_bid_clicked(
-        self,
-        bid,
-    ):
+    def on_bid_clicked(self, bid):
 
         if self.auction_completed:
             return
@@ -647,7 +613,7 @@ class BiddingPage(QWidget):
         accepted = (
             self.bidding_system.make_bid(
                 player,
-                bid
+                bid,
             )
         )
 
@@ -673,7 +639,7 @@ class BiddingPage(QWidget):
 
         accepted = (
             self.bidding_system.make_pass(
-                player
+                player,
             )
         )
 
@@ -698,21 +664,11 @@ class BiddingPage(QWidget):
             self.bidding_system.highest_bid
         )
 
-        # -------------------------------------------------
-        # TO CALL
-        # -------------------------------------------------
-
-        self.info_values[
-            "to_call"
-        ].setText(
+        self.info_values["to_call"].setText(
             self.position_name(
                 current_player
             )
         )
-
-        # -------------------------------------------------
-        # HIGHEST BID
-        # -------------------------------------------------
 
         if highest_bid is None:
 
@@ -724,19 +680,9 @@ class BiddingPage(QWidget):
                 highest_bid
             )
 
-        self.info_values[
-            "highest_bid"
-        ].setText(
+        self.info_values["highest_bid"].setText(
             highest_text
         )
-
-        # -------------------------------------------------
-        # BID BUTTONS
-        # -------------------------------------------------
-
-        # IMPORTANT:
-        # bid_buttons is now a list of (bid, button)
-        # pairs instead of a dictionary.
 
         for bid, button in self.bid_buttons:
 
@@ -752,24 +698,12 @@ class BiddingPage(QWidget):
                 and not self.auction_completed
             )
 
-        # -------------------------------------------------
-        # PASS
-        # -------------------------------------------------
-
         self.pass_button.setEnabled(
             not self.bidding_system.auction_finished
             and not self.auction_completed
         )
 
-        # -------------------------------------------------
-        # AUCTION
-        # -------------------------------------------------
-
         self.update_auction_history()
-
-        # -------------------------------------------------
-        # ACTIVE PLAYER
-        # -------------------------------------------------
 
         self.update_active_player()
 
@@ -790,24 +724,15 @@ class BiddingPage(QWidget):
                 and not self.auction_completed
             )
 
-            # Keep the logical active state.
-            if hasattr(seat, "set_active"):
-
-                seat.set_active(
-                    is_current
-                )
-
-            # The bidding highlight is controlled
-            # separately from dealer status.
+            seat.set_active(is_current)
 
             seat.setProperty(
                 "biddingActive",
-                is_current
+                is_current,
             )
 
             seat.style().unpolish(seat)
             seat.style().polish(seat)
-
             seat.update()
 
     # =====================================================
@@ -823,12 +748,9 @@ class BiddingPage(QWidget):
             widget = item.widget()
 
             if widget is not None:
-
                 widget.deleteLater()
 
-        history = (
-            self.bidding_system.history
-        )
+        history = self.bidding_system.history
 
         if not history:
 
@@ -850,10 +772,6 @@ class BiddingPage(QWidget):
 
             return
 
-        # -------------------------------------------------
-        # GROUP FOUR CALLS PER ROW
-        # -------------------------------------------------
-
         rows = []
 
         current_row = []
@@ -861,29 +779,17 @@ class BiddingPage(QWidget):
         for position, bid in history:
 
             current_row.append(
-                (
-                    position,
-                    bid
-                )
+                (position, bid)
             )
 
             if len(current_row) == 4:
 
-                rows.append(
-                    current_row
-                )
+                rows.append(current_row)
 
                 current_row = []
 
         if current_row:
-
-            rows.append(
-                current_row
-            )
-
-        # -------------------------------------------------
-        # DISPLAY
-        # -------------------------------------------------
+            rows.append(current_row)
 
         for auction_row in rows:
 
@@ -897,7 +803,7 @@ class BiddingPage(QWidget):
                 0,
                 0,
                 0,
-                0
+                0,
             )
 
             row_layout.setSpacing(4)
@@ -912,14 +818,9 @@ class BiddingPage(QWidget):
             for position, bid in auction_row:
 
                 if bid is None:
-
                     text = "Pass"
-
                 else:
-
-                    text = self.bid_text(
-                        bid
-                    )
+                    text = self.bid_text(bid)
 
                 cells[position] = text
 
@@ -942,9 +843,7 @@ class BiddingPage(QWidget):
                     "auctionCall"
                 )
 
-                row_layout.addWidget(
-                    label
-                )
+                row_layout.addWidget(label)
 
             self.auction_layout.addWidget(
                 row_widget
@@ -963,18 +862,6 @@ class BiddingPage(QWidget):
 
             self.finish_auction()
 
-            return
-
-        # Four passes without a bid.
-
-        if (
-            self.bidding_system.highest_bid is None
-            and
-            self.bidding_system.consecutive_passes >= 4
-        ):
-
-            self.finish_auction()
-
     # =====================================================
     # FINISH AUCTION
     # =====================================================
@@ -986,58 +873,53 @@ class BiddingPage(QWidget):
 
         self.auction_completed = True
 
-        # -------------------------------------------------
-        # DETERMINE CONTRACT
-        # -------------------------------------------------
+        # =================================================
+        # USE EXISTING CONTRACT LOGIC
+        # =================================================
 
         contract = determine_contract(
             self.bidding_system
         )
 
+        # IMPORTANT:
+        # We do NOT calculate the declarer here.
+        # The existing contract/declarer code does that.
         declarer = None
 
         if contract is not None:
-
             declarer = contract.declarer
 
-        # -------------------------------------------------
-        # SEND GAME TO MAIN WINDOW
-        # -------------------------------------------------
+        # =================================================
+        # PASS DATA TO PLAY PAGE
+        # =================================================
 
         window = self.window()
 
         if hasattr(window, "play_data"):
 
             window.play_data = {
-
                 "players": self.players,
-
                 "dealer": self.dealer,
-
                 "contract": contract,
-
                 "declarer": declarer,
-
                 "history": list(
                     self.bidding_system.history
                 ),
             }
 
-        # -------------------------------------------------
-        # UPDATE UI
-        # -------------------------------------------------
+        # =================================================
+        # UPDATE BIDDING UI
+        # =================================================
 
         self.update_bidding_ui()
 
-        # -------------------------------------------------
-        # GO TO PLAY
-        # -------------------------------------------------
+        # =================================================
+        # NAVIGATE TO PLAY
+        # =================================================
 
         if hasattr(window, "navigate"):
 
-            window.navigate(
-                "Play"
-            )
+            window.navigate("Play")
 
     # =====================================================
     # DISPLAY HELPERS
@@ -1170,10 +1052,6 @@ class BiddingPage(QWidget):
             padding: 9px;
             font-size: 14px;
             font-weight: bold;
-        }
-
-        QPushButton#secondaryButton:hover {
-            background-color: #1b3b2d;
         }
 
         QPushButton#secondaryButton:disabled {

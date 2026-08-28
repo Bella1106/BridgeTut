@@ -137,7 +137,7 @@ class PlayerSeat(QFrame):
 
     def rebuild_hand(self):
 
-        # Remove the previous hand widget.
+        # Remove previous hand widget.
         if self.hand_widget is not None:
 
             self.main_layout.removeWidget(
@@ -168,11 +168,11 @@ class PlayerSeat(QFrame):
             # Make sure the widget knows its card.
             card_widget.card = card
 
-            # Send the clicked card to PlayPage.
+            # Send the clicked card to the parent page.
             card_widget.clicked.connect(
                 lambda checked=False,
-                       c=card:
-                    self.card_clicked.emit(c)
+                c=card:
+                self.card_clicked.emit(c)
             )
 
             # Only the active player's cards can be clicked.
@@ -436,6 +436,17 @@ class PlayerSeat(QFrame):
                 active
             )
 
+        # Update the visual border.
+        self.update_style()
+
+    # =====================================================
+    # DEALER
+    # =====================================================
+
+    def set_dealer(self, dealer):
+
+        self.dealer = dealer
+
         self.update_style()
 
     # =====================================================
@@ -456,70 +467,61 @@ class PlayerSeat(QFrame):
 
     def update_style(self):
 
+        # -------------------------------------------------
+        # ACTIVE PLAYER
+        # -------------------------------------------------
+
         if self.active:
 
-            self.setStyleSheet("""
-                QFrame#playerSeat {
-                    background-color: #00582b;
-                    border: 3px solid #e5c557;
-                    border-radius: 10px;
-                }
-
-                QLabel#playerPosition {
-                    color: #e5c557;
-                    font-size: 14px;
-                    font-weight: bold;
-                    background: transparent;
-                    border: none;
-                }
-
-                QLabel#playerRole {
-                    color: #e5c557;
-                    font-size: 12px;
-                    font-weight: bold;
-                    letter-spacing: 1px;
-                    background: transparent;
-                    border: none;
-                }
-
-                QLabel#cardCount {
-                    color: #aebbb5;
-                    font-size: 12px;
-                    background: transparent;
-                    border: none;
-                }
-            """)
+            border = "3px solid #e5c557"
 
         else:
 
-            self.setStyleSheet("""
-                QFrame#playerSeat {
-                    background-color: #00582b;
-                    border: 1px solid transparent;
-                    border-radius: 10px;
-                }
+            border = "1px solid transparent"
 
-                QLabel#playerPosition {
-                    color: #e5c557;
-                    font-size: 14px;
-                    font-weight: bold;
-                    background: transparent;
-                    border: none;
-                }
+        # -------------------------------------------------
+        # DEALER
+        # -------------------------------------------------
 
-                QLabel#playerRole {
-                    color: #e5c557;
-                    font-size: 12px;
-                    font-weight: bold;
-                    letter-spacing: 1px;
-                    background: transparent;
-                    border: none;
-                }
+        # Dealer receives a gold border only when they are
+        # not already the active player.
+        #
+        # If the dealer is active, the active-player border
+        # is already gold and should not be duplicated.
 
-                QLabel#cardCount {
-                    color: #aebbb5;
-                    font-size: 12px;
-                    background: transparent;
-                    border: none;
-                }
-            """)
+        if self.dealer and not self.active:
+
+            border = "2px solid #e5c557"
+
+        self.setStyleSheet(
+            f"""
+            QFrame#playerSeat {{
+                background-color: #00582b;
+                border: {border};
+                border-radius: 10px;
+            }}
+
+            QLabel#playerPosition {{
+                color: #e5c557;
+                font-size: 14px;
+                font-weight: bold;
+                background: transparent;
+                border: none;
+            }}
+
+            QLabel#playerRole {{
+                color: #e5c557;
+                font-size: 12px;
+                font-weight: bold;
+                background: transparent;
+                border: none;
+            }}
+
+            QLabel#cardCount {{
+                color: #aebbb5;
+                font-size: 12px;
+                background: transparent;
+                border: none;
+            }}
+            """
+        )
