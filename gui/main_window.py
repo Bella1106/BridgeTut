@@ -93,7 +93,6 @@ class MainWindow(QMainWindow):
 
         pages = [
             "Home",
-            "Deal",
             "Bidding",
             "Play",
             "Results",
