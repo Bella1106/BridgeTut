@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QTextEdit,
     QFrame,
     QScrollArea,
+    QMessageBox,
 )
 
 
@@ -84,7 +85,9 @@ class HistoryPage(QWidget):
             "historyTitle"
         )
 
-        left_layout.addWidget(title)
+        left_layout.addWidget(
+            title
+        )
 
         subtitle = QLabel(
             "Previously played games"
@@ -94,7 +97,9 @@ class HistoryPage(QWidget):
             "historySubtitle"
         )
 
-        left_layout.addWidget(subtitle)
+        left_layout.addWidget(
+            subtitle
+        )
 
         self.game_list = QListWidget()
 
@@ -288,10 +293,18 @@ class HistoryPage(QWidget):
             save_button
         )
 
+        # -------------------------------------------------
+        # ADD RIGHT PANEL
+        # -------------------------------------------------
+
         main_layout.addWidget(
             right_panel,
             2,
         )
+
+        # -------------------------------------------------
+        # STYLE
+        # -------------------------------------------------
 
         self.setStyleSheet(
             self.get_style()
@@ -334,7 +347,9 @@ class HistoryPage(QWidget):
         # AUTOMATICALLY SELECT LATEST GAME
         # -------------------------------------------------
 
-        self.game_list.setCurrentRow(0)
+        self.game_list.setCurrentRow(
+            0
+        )
 
     # =====================================================
     # SELECT GAME
@@ -368,13 +383,18 @@ class HistoryPage(QWidget):
 
         self.selected_game = game
 
-        self.display_game(game)
+        self.display_game(
+            game
+        )
 
     # =====================================================
     # DISPLAY GAME
     # =====================================================
 
-    def display_game(self, game):
+    def display_game(
+        self,
+        game,
+    ):
 
         self.game_title.setText(
             f"Game #{game.game_id}"
@@ -404,7 +424,9 @@ class HistoryPage(QWidget):
             details
         )
 
-        self.display_tricks(game)
+        self.display_tricks(
+            game
+        )
 
         self.notes_edit.setPlainText(
             game.notes
@@ -414,7 +436,10 @@ class HistoryPage(QWidget):
     # DISPLAY TRICKS
     # =====================================================
 
-    def display_tricks(self, game):
+    def display_tricks(
+        self,
+        game,
+    ):
 
         # -------------------------------------------------
         # CLEAR OLD TRICKS
@@ -422,7 +447,11 @@ class HistoryPage(QWidget):
 
         while self.tricks_layout.count():
 
-            item = self.tricks_layout.takeAt(0)
+            item = (
+                self.tricks_layout.takeAt(
+                    0
+                )
+            )
 
             widget = item.widget()
 
@@ -513,22 +542,23 @@ class HistoryPage(QWidget):
                 18
             )
 
-            # Display in bridge table order:
-            #
-            # North
-            # East
-            # South
-            # West
-
             display_order = [
 
-                self.position_from_letter("N"),
+                self.position_from_letter(
+                    "N"
+                ),
 
-                self.position_from_letter("E"),
+                self.position_from_letter(
+                    "E"
+                ),
 
-                self.position_from_letter("S"),
+                self.position_from_letter(
+                    "S"
+                ),
 
-                self.position_from_letter("W"),
+                self.position_from_letter(
+                    "W"
+                ),
             ]
 
             for position in display_order:
@@ -579,7 +609,9 @@ class HistoryPage(QWidget):
     # =====================================================
 
     @staticmethod
-    def card_text(card):
+    def card_text(
+        card,
+    ):
 
         if card is None:
 
@@ -606,7 +638,9 @@ class HistoryPage(QWidget):
     # =====================================================
 
     @staticmethod
-    def position_from_letter(letter):
+    def position_from_letter(
+        letter,
+    ):
 
         from card_model.player import Position
 
@@ -641,6 +675,65 @@ class HistoryPage(QWidget):
             notes
         )
 
+        # -------------------------------------------------
+        # CUSTOM CONFIRMATION MESSAGE BOX
+        # -------------------------------------------------
+
+        message_box = QMessageBox(
+            self
+        )
+
+        message_box.setWindowTitle(
+            "Notes Saved"
+        )
+
+        message_box.setText(
+            "Notes saved successfully."
+        )
+
+        message_box.setIcon(
+            QMessageBox.Information
+        )
+
+        message_box.setStandardButtons(
+            QMessageBox.Ok
+        )
+
+        message_box.setStyleSheet("""
+
+            QMessageBox {
+                background-color: #11271d;
+            }
+
+            QMessageBox QLabel {
+                color: #f1f4f2;
+                font-size: 15px;
+                padding: 10px;
+            }
+
+            QMessageBox QPushButton {
+                background-color: #51b5ba;
+                color: #071710;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 24px;
+                min-width: 70px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+
+            QMessageBox QPushButton:hover {
+                background-color: #68c4c8;
+            }
+
+            QMessageBox QPushButton:pressed {
+                background-color: #3d9da2;
+            }
+
+        """)
+
+        message_box.exec()
+
     # =====================================================
     # NO GAMES
     # =====================================================
@@ -661,7 +754,11 @@ class HistoryPage(QWidget):
 
         while self.tricks_layout.count():
 
-            item = self.tricks_layout.takeAt(0)
+            item = (
+                self.tricks_layout.takeAt(
+                    0
+                )
+            )
 
             widget = item.widget()
 
@@ -674,7 +771,9 @@ class HistoryPage(QWidget):
     # =====================================================
 
     @staticmethod
-    def position_name(position):
+    def position_name(
+        position,
+    ):
 
         if position is None:
 
@@ -683,7 +782,9 @@ class HistoryPage(QWidget):
         return position.value.title()
 
     @staticmethod
-    def position_letter(position):
+    def position_letter(
+        position,
+    ):
 
         if position is None:
 
