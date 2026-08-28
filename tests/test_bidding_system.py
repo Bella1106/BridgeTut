@@ -309,3 +309,25 @@ def test_mixed_auction_sequence():
         (Position.WEST, None),
         (Position.NORTH, None),
     ]
+
+def test_three_opening_passes_do_not_end_auction():
+    system = BiddingSystem(Position.SOUTH)
+
+    system.make_pass(Position.SOUTH)
+    system.make_pass(Position.WEST)
+    system.make_pass(Position.NORTH)
+
+    assert system.auction_finished is False
+    assert system.highest_bid is None
+
+def test_four_opening_passes_end_auction_as_passed_out():
+    system = BiddingSystem(Position.SOUTH)
+
+    system.make_pass(Position.SOUTH)
+    system.make_pass(Position.WEST)
+    system.make_pass(Position.NORTH)
+    system.make_pass(Position.EAST)
+
+    assert system.auction_finished is True
+    assert system.highest_bid is None
+    assert system.consecutive_passes == 4
