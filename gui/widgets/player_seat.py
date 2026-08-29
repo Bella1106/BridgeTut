@@ -1,8 +1,17 @@
 """
 Displays one player's hand.
+
+PlayerSeat is responsible for:
+
+- Displaying the player's cards.
+- Highlighting the player whose turn it currently is.
+- Emitting a signal when one of the player's cards is clicked.
+
+PlayPage is responsible for deciding what happens after a card
+is clicked.
 """
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QFrame,
     QVBoxLayout,
@@ -15,20 +24,9 @@ from .card_widget import CardWidget
 
 
 class PlayerSeat(QFrame):
-    """
-    Displays one player's hand.
 
-    Normal size:
-        Cards are displayed next to each other.
-
-    Smaller window:
-        Cards automatically overlap so all 13 cards
-        continue to fit inside the player area.
-
-    Dealer:
-        The player who is the dealer receives the
-        gold border around their entire player block.
-    """
+    # Emitted when one of this player's cards is clicked.
+    card_clicked = Signal(object)
 
     def __init__(
         self,
@@ -43,17 +41,13 @@ class PlayerSeat(QFrame):
 
         self.player = player
         self.role = role
-
-        # Controls which player currently has the turn.
         self.active = active
-
-        # Identifies the dealer separately.
         self.dealer = dealer
-
         self.hand_orientation = hand_orientation
 
         self.cards = []
         self.hand_widget = None
+        self.card_count_label = None
 
         self.setup_ui()
 
@@ -71,7 +65,7 @@ class PlayerSeat(QFrame):
             12,
             10,
             12,
-            10
+            10,
         )
 
         self.main_layout.setSpacing(6)
@@ -86,77 +80,64 @@ class PlayerSeat(QFrame):
             0,
             0,
             0,
-            0
+            0,
         )
 
         header.setSpacing(6)
 
-        # Player position
         position = QLabel(
             self.player.position.value
         )
 
-        position.setStyleSheet("""
-            color: #e5c557;
-            font-size: 14px;
-            font-weight: bold;
-        """)
+        position.setObjectName(
+            "playerPosition"
+        )
 
         header.addWidget(position)
 
-        # Player role
         if self.role:
 
             role_label = QLabel(
                 self.role.upper()
             )
 
-            role_label.setStyleSheet("""
-                color: #e5c557;
-                font-size: 12px;
-                letter-spacing: 1px;
-            """)
+            role_label.setObjectName(
+                "playerRole"
+            )
 
             header.addWidget(role_label)
 
         header.addStretch()
 
-        # Number of cards
-        card_count = QLabel(
+        self.card_count_label = QLabel(
             f"{len(self.player.hand)} CARDS"
         )
 
-        card_count.setStyleSheet("""
-            color: #aebbb5;
-            font-size: 12px;
-        """)
+        self.card_count_label.setObjectName(
+            "cardCount"
+        )
 
-        header.addWidget(card_count)
+        header.addWidget(
+            self.card_count_label
+        )
 
         self.main_layout.addLayout(header)
 
         # -------------------------------------------------
-        # CREATE CARDS
+        # CREATE HAND
         # -------------------------------------------------
 
-        self.cards = [
-            CardWidget(card)
-            for card in self.player.hand.sorted_by_suit()
-        ]
+        self.rebuild_hand()
 
-        # Create initial hand
-        self.update_hand_layout()
-
-        # Apply player-seat styling
-        self.setStyleSheet(self.get_style())
+        self.update_style()
 
     # =====================================================
-    # RESPONSIVE HAND
+    # REBUILD HAND
     # =====================================================
 
-    def update_hand_layout(self):
+    def rebuild_hand(self):
 
-        # Remove the old hand widget
+        # Remove previous hand widget.
         if self.hand_widget is not None:
 
             self.main_layout.removeWidget(
@@ -167,25 +148,79 @@ class PlayerSeat(QFrame):
 
             self.hand_widget = None
 
+        # Update card count.
+        if self.card_count_label is not None:
+
+            self.card_count_label.setText(
+                f"{len(self.player.hand)} CARDS"
+            )
+
         # -------------------------------------------------
-        # VERTICAL HAND
+        # CREATE CARD WIDGETS
         # -------------------------------------------------
+
+        self.cards = []
+
+        for card in self.player.hand.sorted_by_suit():
+
+            card_widget = CardWidget(card)
+
+            # Make sure the widget knows its card.
+            card_widget.card = card
+
+            # Send the clicked card to the parent page.
+            card_widget.clicked.connect(
+                lambda checked=False,
+                c=card:
+                self.card_clicked.emit(c)
+            )
+
+            # Only the active player's cards can be clicked.
+            card_widget.setEnabled(
+                self.active
+            )
+
+            self.cards.append(
+                card_widget
+            )
+
+        # -------------------------------------------------
+        # CREATE HAND LAYOUT
+        # -------------------------------------------------
+
+        self.update_hand_layout()
+
+    # =====================================================
+    # RESPONSIVE HAND
+    # =====================================================
+
+    def update_hand_layout(self):
+
+        if self.hand_widget is not None:
+
+            self.main_layout.removeWidget(
+                self.hand_widget
+            )
+
+            self.hand_widget.deleteLater()
+
+            self.hand_widget = None
 
         if self.hand_orientation == "vertical":
 
-            self.hand_widget = self.create_vertical_hand()
-
-        # -------------------------------------------------
-        # HORIZONTAL HAND
-        # -------------------------------------------------
+            self.hand_widget = (
+                self.create_vertical_hand()
+            )
 
         else:
 
-            self.hand_widget = self.create_horizontal_hand()
+            self.hand_widget = (
+                self.create_horizontal_hand()
+            )
 
         self.main_layout.addWidget(
             self.hand_widget,
-            alignment=Qt.AlignCenter
+            alignment=Qt.AlignCenter,
         )
 
     # =====================================================
@@ -199,26 +234,38 @@ class PlayerSeat(QFrame):
 
         number_of_cards = len(self.cards)
 
-        # Width available inside PlayerSeat.
         available_width = self.width() - 24
 
-        # During initial construction the widget may not
-        # have its final width yet.
         if available_width <= 0:
             available_width = 680
-
-        # -------------------------------------------------
-        # NORMAL MODE
-        # -------------------------------------------------
-        #
-        # If all cards fit normally, keep them completely
-        # separated.
-        #
 
         normal_width = (
             number_of_cards * card_width
             + max(0, number_of_cards - 1) * 2
         )
+
+        # -------------------------------------------------
+        # EMPTY HAND
+        # -------------------------------------------------
+
+        if number_of_cards == 0:
+
+            hand_widget = QWidget()
+
+            hand_widget.setFixedSize(
+                card_width,
+                card_height,
+            )
+
+            hand_widget.setStyleSheet(
+                "background: transparent;"
+            )
+
+            return hand_widget
+
+        # -------------------------------------------------
+        # NORMAL MODE
+        # -------------------------------------------------
 
         if normal_width <= available_width:
 
@@ -232,9 +279,9 @@ class PlayerSeat(QFrame):
                 normal_width
             )
 
-            hand_widget.setStyleSheet("""
-                background: transparent;
-            """)
+            hand_widget.setStyleSheet(
+                "background: transparent;"
+            )
 
             hand_layout = QHBoxLayout(
                 hand_widget
@@ -244,7 +291,7 @@ class PlayerSeat(QFrame):
                 0,
                 0,
                 0,
-                0
+                0,
             )
 
             hand_layout.setSpacing(2)
@@ -262,12 +309,8 @@ class PlayerSeat(QFrame):
             return hand_widget
 
         # -------------------------------------------------
-        # STACKED / COMPACT MODE
+        # COMPACT MODE
         # -------------------------------------------------
-        #
-        # Only activate this when the cards no longer
-        # fit side-by-side.
-        #
 
         if number_of_cards > 1:
 
@@ -275,10 +318,9 @@ class PlayerSeat(QFrame):
                 available_width - card_width
             ) / (number_of_cards - 1)
 
-            # Keep enough of each card visible.
             overlap_step = max(
                 22,
-                int(overlap_step)
+                int(overlap_step),
             )
 
         else:
@@ -287,30 +329,25 @@ class PlayerSeat(QFrame):
 
         total_width = (
             card_width
-            + (number_of_cards - 1) * overlap_step
+            + (number_of_cards - 1)
+            * overlap_step
         )
 
-        # Never allow the hand widget to become wider
-        # than the available player-seat area.
         total_width = min(
             int(total_width),
-            int(available_width)
+            int(available_width),
         )
 
         hand_widget = QWidget()
 
         hand_widget.setFixedSize(
             total_width,
-            card_height
+            card_height,
         )
 
-        hand_widget.setStyleSheet("""
-            background: transparent;
-        """)
-
-        # -------------------------------------------------
-        # MANUAL CARD POSITIONING
-        # -------------------------------------------------
+        hand_widget.setStyleSheet(
+            "background: transparent;"
+        )
 
         for index, card_widget in enumerate(
             self.cards
@@ -324,7 +361,7 @@ class PlayerSeat(QFrame):
 
             card_widget.move(
                 int(x),
-                0
+                0,
             )
 
             card_widget.show()
@@ -342,7 +379,6 @@ class PlayerSeat(QFrame):
 
         number_of_cards = len(self.cards)
 
-        # Cards overlap vertically.
         overlap_step = 22
 
         if number_of_cards > 0:
@@ -361,16 +397,12 @@ class PlayerSeat(QFrame):
 
         hand_widget.setFixedSize(
             card_width,
-            total_height
+            total_height,
         )
 
-        hand_widget.setStyleSheet("""
-            background: transparent;
-        """)
-
-        # -------------------------------------------------
-        # MANUAL CARD POSITIONING
-        # -------------------------------------------------
+        hand_widget.setStyleSheet(
+            "background: transparent;"
+        )
 
         for index, card_widget in enumerate(
             self.cards
@@ -380,17 +412,42 @@ class PlayerSeat(QFrame):
                 hand_widget
             )
 
-            x = 0
-            y = index * overlap_step
-
             card_widget.move(
-                x,
-                y
+                0,
+                index * overlap_step,
             )
 
             card_widget.show()
 
         return hand_widget
+
+    # =====================================================
+    # ACTIVE PLAYER
+    # =====================================================
+
+    def set_active(self, active):
+
+        self.active = active
+
+        # Enable/disable this player's cards.
+        for card_widget in self.cards:
+
+            card_widget.setEnabled(
+                active
+            )
+
+        # Update the visual border.
+        self.update_style()
+
+    # =====================================================
+    # DEALER
+    # =====================================================
+
+    def set_dealer(self, dealer):
+
+        self.dealer = dealer
+
+        self.update_style()
 
     # =====================================================
     # RESPONSIVE RESIZE
@@ -400,54 +457,71 @@ class PlayerSeat(QFrame):
 
         super().resizeEvent(event)
 
-        # Only horizontal hands need to switch between
-        # normal and compact modes.
         if self.hand_orientation == "horizontal":
 
             self.update_hand_layout()
 
-        # =====================================================
+    # =====================================================
     # STYLE
     # =====================================================
 
-    def set_active(self, active):
-        """
-        Update whether this player currently has the bidding turn.
-        """
-
-        self.active = active
-
-        # Re-apply the style so the gold border moves.
-        self.setStyleSheet(self.get_style())
-
-    def get_style(self):
+    def update_style(self):
 
         # -------------------------------------------------
         # ACTIVE PLAYER
         # -------------------------------------------------
-        #
-        # The player currently placing a bid gets the
-        # gold border.
-        #
 
         if self.active:
 
-            return """
-                QFrame#playerSeat {
-                    background-color: #00582b;
-                    border: 3px solid #e5c557;
-                    border-radius: 10px;
-                }
-            """
+            border = "3px solid #e5c557"
+
+        else:
+
+            border = "1px solid transparent"
 
         # -------------------------------------------------
-        # NORMAL PLAYER
+        # DEALER
         # -------------------------------------------------
 
-        return """
-            QFrame#playerSeat {
+        # Dealer receives a gold border only when they are
+        # not already the active player.
+        #
+        # If the dealer is active, the active-player border
+        # is already gold and should not be duplicated.
+
+        if self.dealer and not self.active:
+
+            border = "2px solid #e5c557"
+
+        self.setStyleSheet(
+            f"""
+            QFrame#playerSeat {{
                 background-color: #00582b;
-                border: 1px solid transparent;
+                border: {border};
                 border-radius: 10px;
-            }
-        """
+            }}
+
+            QLabel#playerPosition {{
+                color: #e5c557;
+                font-size: 14px;
+                font-weight: bold;
+                background: transparent;
+                border: none;
+            }}
+
+            QLabel#playerRole {{
+                color: #e5c557;
+                font-size: 12px;
+                font-weight: bold;
+                background: transparent;
+                border: none;
+            }}
+
+            QLabel#cardCount {{
+                color: #aebbb5;
+                font-size: 12px;
+                background: transparent;
+                border: none;
+            }}
+            """
+        )

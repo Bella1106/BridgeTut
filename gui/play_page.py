@@ -1,29 +1,45 @@
 """
 Play screen for BridgeTut.
 
-Displays the four hands and the central trick area.
+The GUI uses the existing Contract and declarer logic.
 
-The Play page does not create a new deal when a completed auction
-has been supplied by the main window. It uses the same players/deal
-that was used during bidding and displays the actual contract and
-declarer.
+The PlayPage does NOT determine the declarer itself.
 
-Expected data on the main window:
+Flow:
 
-    window.play_data = {
-        "players": self.players,
-        "dealer": self.dealer,
-        "contract": final_bid,
-        "declarer": declarer,
-        "history": self.bidding_system.history,
-    }
+    BiddingPage
+        |
+        | existing BiddingSystem
+        v
+    determine_contract()
+        |
+        | existing declarer.py
+        v
+    Contract
+        |
+        v
+    PlayPage
 
-A fallback deal is kept so that the Play page can still be opened
-directly while the rest of the application is being developed.
+The same deal created by BiddingPage is used for play.
+
+Current GUI-only play behaviour:
+
+    1. Opening leader is obtained from the existing declarer logic.
+    2. User clicks a card.
+    3. Card is removed from the player's hand.
+    4. Card appears in the centre.
+    5. Turn moves clockwise.
+    6. After four cards, the completed trick remains visible
+       for 2 seconds.
+    7. The trick is saved to the GameRecord.
+    8. The next trick begins.
+    9. After trick 13, the game is complete.
+
+Play validation, trick winners, scoring, etc. remain
+responsibilities of the appropriate backend components.
 """
 
-from bidding.bid import Denomination
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -34,41 +50,97 @@ from PySide6.QtWidgets import (
     QGridLayout,
 )
 
+from bidding.bid import Denomination
+
 from card_model.deck import new_deal
 from card_model.player import Position
+
 from game_logic.declarer import determine_opening_leader
 
 from .widgets.player_seat import PlayerSeat
+from .widgets.card_widget import CardWidget
 
 
 class PlayPage(QWidget):
 
+    # =====================================================
+    # SIGNALS
+    # =====================================================
+
+    results_button_clicked = Signal()
+
+    # =====================================================
+    # INITIALISE
+    # =====================================================
+
     def __init__(self, parent=None):
+
         super().__init__(parent)
 
-        # Game data supplied by BiddingPage/MainWindow.
+        # =================================================
+        # GAME DATA
+        # =================================================
+
         self.players = None
+
         self.dealer = None
+
         self.contract = None
+
         self.declarer = None
+
         self.history = []
+
+        self.game_record = None
+
+        # =================================================
+        # PLAY STATE
+        # =================================================
+
         self.current_player = None
+
+        self.played_cards = {}
+
+        self.trick_number = 1
+
+        self.game_complete = False
+
+        self.trick_timer = None
+
+        # =================================================
+        # UI
+        # =================================================
 
         self.player_seats = {}
 
-        # References to labels that must change when a game is loaded.
         self.contract_title = None
+
         self.declarer_value = None
+
+        self.dummy_value = None
+
         self.leader_value = None
+
         self.trick_value = None
+
         self.game_log = None
+
         self.trump = None
+
         self.trump_subtitle = None
+
+        self.trick_slots = {}
+
+        self.game_complete_label = None
+
+        self.results_button = None
 
         self.setup_complete = False
 
+        self.game_loaded = False
+
     # =====================================================
-    # LOAD GAME
+    # SHOW EVENT
     # =====================================================
 
     def showEvent(self, event):
@@ -77,34 +149,113 @@ class PlayPage(QWidget):
 
         self.load_game()
 
+    # =====================================================
+    # LOAD GAME
+    # =====================================================
+
     def load_game(self):
 
         window = self.window()
 
-        # -------------------------------------------------
-        # USE THE GAME CREATED DURING BIDDING
-        # -------------------------------------------------
+        data = None
 
         if hasattr(window, "play_data"):
 
             data = window.play_data
 
+        # =================================================
+        # LOAD DATA FROM BIDDING PAGE
+        # =================================================
+
+        if data is not None and not self.game_loaded:
+
             self.players = data.get("players")
+
             self.dealer = data.get("dealer")
+
             self.contract = data.get("contract")
+
+            # =================================================
+            # DECLARER
+            # =================================================
+            #
+            # The Contract is the authoritative source for
+            # the declarer.
+            #
+            # BiddingPage already gets the declarer from:
+            #
+            #     contract.declarer
+            #
+            # PlayPage simply displays that result.
+            # =================================================
+
             self.declarer = data.get("declarer")
-            self.history = data.get("history", [])
-            
-            print("PLAY CONTRACT:", self.contract)
-            print("PLAY DECLARER:", self.declarer)
-        # -------------------------------------------------
-        # FALLBACK FOR OPENING PLAY DIRECTLY
-        # -------------------------------------------------
-        #
-        # This keeps the page visible while the project is
-        # being developed. It is NOT used when play_data
-        # has been supplied by BiddingPage.
-        #
+
+            if self.contract is not None:
+
+                contract_declarer = getattr(
+                    self.contract,
+                    "declarer",
+                    None,
+                )
+
+                if contract_declarer is not None:
+
+                    self.declarer = contract_declarer
+
+            self.history = list(
+                data.get(
+                    "history",
+                    [],
+                )
+            )
+
+            # =================================================
+            # RESET PLAY STATE
+            # =================================================
+
+            self.played_cards = {}
+
+            self.trick_number = 1
+
+            self.game_complete = False
+
+            self.game_record = None
+
+            # =================================================
+            # RESET COMPLETION UI
+            # =================================================
+
+            if self.game_complete_label is not None:
+
+                self.game_complete_label.hide()
+
+            if self.results_button is not None:
+
+                self.results_button.setEnabled(False)
+
+            # =================================================
+            # GET OPENING LEADER
+            # =================================================
+
+            self.current_player = self.get_leader()
+
+            # Development fallback only.
+            if self.current_player is None:
+
+                self.current_player = Position.SOUTH
+
+            # =================================================
+            # CREATE GAME RECORD
+            # =================================================
+
+            self.create_game_record()
+
+            self.game_loaded = True
+
+        # =================================================
+        # DEVELOPMENT FALLBACK
+        # =================================================
 
         if self.players is None:
 
@@ -115,9 +266,37 @@ class PlayPage(QWidget):
                 seed=42,
             )
 
-        # -------------------------------------------------
-        # CREATE THE UI ONLY AFTER WE HAVE A DEAL
-        # -------------------------------------------------
+            self.contract = None
+
+            self.declarer = None
+
+            self.history = []
+
+            self.played_cards = {}
+
+            self.trick_number = 1
+
+            self.game_complete = False
+
+            self.game_record = None
+
+            self.current_player = Position.SOUTH
+
+            if self.game_complete_label is not None:
+
+                self.game_complete_label.hide()
+
+            if self.results_button is not None:
+
+                self.results_button.setEnabled(False)
+
+            self.create_game_record()
+
+            self.game_loaded = True
+
+        # =================================================
+        # BUILD UI ONCE
+        # =================================================
 
         if not self.setup_complete:
 
@@ -125,20 +304,97 @@ class PlayPage(QWidget):
 
             self.setup_complete = True
 
-        # -------------------------------------------------
-        # UPDATE DYNAMIC GAME INFORMATION
-        # -------------------------------------------------
-        self.current_player = self.get_leader()
+        # =================================================
+        # REFRESH UI
+        # =================================================
+
         self.update_game_info()
-    def update_active_player(self):
 
-        for position, seat in self.player_seats.items():
+        self.update_active_player()
 
-            seat.set_active(
-                position == self.current_player
-            )
+        self.update_trick_area()
+
     # =====================================================
-    # UI
+    # CREATE GAME RECORD
+    # =====================================================
+
+    def create_game_record(self):
+
+        if self.game_record is not None:
+
+            return
+
+        window = self.window()
+
+        if not hasattr(window, "history_manager"):
+
+            print(
+                "ERROR: Main window has no history_manager."
+            )
+
+            return
+
+        self.game_record = (
+            window.history_manager.add_game(
+                dealer=self.dealer,
+                players=self.players,
+                contract=self.contract,
+                declarer=self.declarer,
+                bidding_history=list(
+                    self.history
+                ),
+            )
+        )
+
+        print(
+            f"GameRecord #{self.game_record.game_id} "
+            f"created."
+        )
+
+    # =====================================================
+    # RESET
+    # =====================================================
+
+    def reset_for_new_game(self):
+
+        if self.trick_timer is not None:
+
+            self.trick_timer.stop()
+
+            self.trick_timer = None
+
+        self.players = None
+
+        self.dealer = None
+
+        self.contract = None
+
+        self.declarer = None
+
+        self.history = []
+
+        self.game_record = None
+
+        self.current_player = None
+
+        self.played_cards = {}
+
+        self.trick_number = 1
+
+        self.game_complete = False
+
+        self.game_loaded = False
+
+        if self.game_complete_label is not None:
+
+            self.game_complete_label.hide()
+
+        if self.results_button is not None:
+
+            self.results_button.setEnabled(False)
+
+    # =====================================================
+    # SETUP UI
     # =====================================================
 
     def setup_ui(self):
@@ -149,7 +405,7 @@ class PlayPage(QWidget):
             4,
             8,
             8,
-            8
+            8,
         )
 
         main_layout.setSpacing(14)
@@ -170,18 +426,35 @@ class PlayPage(QWidget):
             14,
             14,
             14,
-            14
+            14,
         )
 
         table_layout.setSpacing(0)
 
-        # -------------------------------------------------
-        # DETERMINE PLAYER ROLES
-        # -------------------------------------------------
+        # =================================================
+        # OPENING LEADER
+        # =================================================
+
+        opening_leader = self.get_leader()
+
+        if opening_leader is None:
+
+            opening_leader = Position.SOUTH
+
+        self.current_player = opening_leader
+
+        # =================================================
+        # PLAYER SEATS
+        # =================================================
 
         north = PlayerSeat(
             self.players[Position.NORTH],
             role=self.player_role(Position.NORTH),
+            active=(
+                Position.NORTH
+                == self.current_player
+            ),
+            dealer=False,
             hand_orientation="horizontal",
         )
 
@@ -190,6 +463,11 @@ class PlayPage(QWidget):
         west = PlayerSeat(
             self.players[Position.WEST],
             role=self.player_role(Position.WEST),
+            active=(
+                Position.WEST
+                == self.current_player
+            ),
+            dealer=False,
             hand_orientation="vertical",
         )
 
@@ -198,6 +476,11 @@ class PlayPage(QWidget):
         east = PlayerSeat(
             self.players[Position.EAST],
             role=self.player_role(Position.EAST),
+            active=(
+                Position.EAST
+                == self.current_player
+            ),
+            dealer=False,
             hand_orientation="vertical",
         )
 
@@ -206,7 +489,11 @@ class PlayPage(QWidget):
         south = PlayerSeat(
             self.players[Position.SOUTH],
             role=self.player_role(Position.SOUTH),
-            active=False,
+            active=(
+                Position.SOUTH
+                == self.current_player
+            ),
+            dealer=False,
             hand_orientation="horizontal",
         )
 
@@ -219,15 +506,35 @@ class PlayPage(QWidget):
             Position.WEST: west,
         }
 
-        # -------------------------------------------------
-        # CENTRE TRICK
-        # -------------------------------------------------
+        # =================================================
+        # CARD CLICKS
+        # =================================================
+
+        north.card_clicked.connect(
+            self.play_card
+        )
+
+        east.card_clicked.connect(
+            self.play_card
+        )
+
+        south.card_clicked.connect(
+            self.play_card
+        )
+
+        west.card_clicked.connect(
+            self.play_card
+        )
+
+        # =================================================
+        # TRICK AREA
+        # =================================================
 
         trick = self.create_trick_area()
 
-        # -------------------------------------------------
-        # TABLE POSITIONS
-        # -------------------------------------------------
+        # =================================================
+        # TABLE
+        # =================================================
 
         table_layout.addWidget(
             north,
@@ -265,69 +572,52 @@ class PlayPage(QWidget):
             3,
         )
 
-        table_layout.setColumnStretch(
-            1,
-            1
-        )
-
-        table_layout.setColumnStretch(
-            2,
-            1
-        )
-
-        table_layout.setColumnStretch(
-            3,
-            1
-        )
-
-        table_layout.setRowStretch(
-            1,
-            1
-        )
+        table_layout.setColumnStretch(1, 1)
+        table_layout.setColumnStretch(2, 1)
+        table_layout.setColumnStretch(3, 1)
+        table_layout.setRowStretch(1, 1)
 
         main_layout.addWidget(
             table,
-            1
+            1,
         )
 
         # =================================================
-        # RIGHT SIDEBAR
+        # SIDEBAR
         # =================================================
 
         sidebar = QWidget()
 
-        sidebar_layout = QVBoxLayout(
-            sidebar
-        )
+        sidebar_layout = QVBoxLayout(sidebar)
 
         sidebar_layout.setContentsMargins(
             0,
             0,
             0,
-            0
+            0,
         )
 
         sidebar_layout.setSpacing(14)
 
-        # -------------------------------------------------
+        # =================================================
         # CONTRACT
-        # -------------------------------------------------
+        # =================================================
 
-        contract = QFrame()
+        contract_panel = QFrame()
 
-        contract.setObjectName(
+        contract_panel.setObjectName(
             "sidePanel"
         )
 
         contract_layout = QVBoxLayout(
-            contract
+            contract_panel
         )
 
         contract_layout.setContentsMargins(
             16,
             14,
             16,
-            14
+            14,
         )
 
         self.contract_title = QLabel(
@@ -345,64 +635,70 @@ class PlayPage(QWidget):
         self.add_side_row(
             contract_layout,
             "DECLARER",
-            self.position_name(self.declarer)
-            if self.declarer is not None
-            else "—",
-            "declarer_value"
+            self.position_name(
+                self.declarer
+            ),
+            "declarer_value",
         )
-
-        leader = self.get_leader()
 
         self.add_side_row(
             contract_layout,
-            "LEAD / TURN",
-            self.position_name(leader)
-            if leader is not None
-            else "—",
-            "leader_value"
+            "DUMMY",
+            self.position_name(
+                self.get_dummy()
+            ),
+            "dummy_value",
+        )
+
+        self.add_side_row(
+            contract_layout,
+            "OPENING LEAD",
+            self.position_name(
+                self.get_leader()
+            ),
+            "leader_value",
         )
 
         self.add_side_row(
             contract_layout,
             "TRICK",
             "1 / 13",
-            "trick_value"
+            "trick_value",
         )
 
         sidebar_layout.addWidget(
-            contract
+            contract_panel
         )
 
-        # -------------------------------------------------
-        # SCORE BOXES
-        # -------------------------------------------------
+        # =================================================
+        # SCORES
+        # =================================================
 
         scores = QHBoxLayout()
 
         scores.setSpacing(12)
 
-        declarer_score = self.create_score_box(
-            "DECLARER",
-            "0",
-            "NEED 10"
+        scores.addWidget(
+            self.create_score_box(
+                "DECLARER",
+                "—",
+                "SCORING LATER",
+            )
         )
 
-        defence_score = self.create_score_box(
-            "DEFENCE",
-            "0",
-            "NEED 4"
+        scores.addWidget(
+            self.create_score_box(
+                "DEFENCE",
+                "—",
+                "SCORING LATER",
+            )
         )
 
-        scores.addWidget(declarer_score)
-        scores.addWidget(defence_score)
+        sidebar_layout.addLayout(scores)
 
-        sidebar_layout.addLayout(
-            scores
-        )
-
-        # -------------------------------------------------
+        # =================================================
         # GAME LOG
-        # -------------------------------------------------
+        # =================================================
 
         log = QFrame()
 
@@ -416,7 +712,7 @@ class PlayPage(QWidget):
             16,
             14,
             16,
-            14
+            14,
         )
 
         log_title = QLabel(
@@ -445,40 +741,328 @@ class PlayPage(QWidget):
 
         sidebar_layout.addWidget(
             log,
-            1
+            1,
         )
 
-        # -------------------------------------------------
+        # =================================================
+        # GAME COMPLETE
+        # =================================================
+
+        self.game_complete_label = QLabel(
+            "GAME COMPLETE\n\n"
+            "All 13 tricks have been played.\n"
+            "The game has been saved to history."
+        )
+
+        self.game_complete_label.setObjectName(
+            "gameComplete"
+        )
+
+        self.game_complete_label.setAlignment(
+            Qt.AlignCenter
+        )
+
+        self.game_complete_label.setWordWrap(True)
+
+        self.game_complete_label.hide()
+
+        sidebar_layout.addWidget(
+            self.game_complete_label
+        )
+
+        # =================================================
         # RESULTS
-        # -------------------------------------------------
+        # =================================================
 
-        results = QPushButton(
-            "Results"
+        self.results_button = QPushButton(
+            "VIEW RESULTS"
         )
 
-        results.setObjectName(
+        self.results_button.setObjectName(
             "resultsButton"
         )
 
-        results.setFixedHeight(
+        self.results_button.setFixedHeight(
             52
         )
 
+        self.results_button.clicked.connect(
+            self.results_button_clicked.emit
+        )
+
+        self.results_button.setEnabled(False)
+
         sidebar_layout.addWidget(
-            results
+            self.results_button
         )
 
         main_layout.addWidget(
             sidebar,
-            0
+            0,
         )
 
         self.setStyleSheet(
             self.get_style()
         )
 
+        self.update_active_player()
+
     # =====================================================
-    # GAME INFORMATION
+    # PLAY CARD
+    # =====================================================
+
+    def play_card(self, card):
+
+        if self.game_complete:
+            return
+
+        if self.current_player is None:
+            return
+
+        if self.players is None:
+            return
+
+        if len(self.played_cards) >= 4:
+            return
+
+        player = self.players[
+            self.current_player
+        ]
+
+        if card not in player.hand:
+            return
+
+        print(
+            f"{self.current_player.value} "
+            f"played "
+            f"{card.rank.short}"
+            f"{card.suit.symbol}"
+        )
+
+        # =================================================
+        # REMOVE CARD
+        # =================================================
+
+        player.hand.remove(card)
+
+        # =================================================
+        # STORE CARD
+        # =================================================
+
+        self.played_cards[
+            self.current_player
+        ] = card
+
+        # =================================================
+        # REFRESH HAND
+        # =================================================
+
+        seat = self.player_seats.get(
+            self.current_player
+        )
+
+        if seat is not None:
+
+            seat.rebuild_hand()
+
+        # =================================================
+        # REFRESH CENTRE
+        # =================================================
+
+        self.update_trick_area()
+
+        # =================================================
+        # FOUR CARDS
+        # =================================================
+
+        if len(self.played_cards) == 4:
+
+            self.save_current_trick()
+
+            # =============================================
+            # TRICK 13
+            # =============================================
+
+            if self.trick_number >= 13:
+
+                self.game_complete = True
+
+                print(
+                    "All 13 tricks completed."
+                )
+
+                if self.game_complete_label is not None:
+
+                    self.game_complete_label.show()
+
+                if self.results_button is not None:
+
+                    self.results_button.setEnabled(
+                        True
+                    )
+
+                self.update_active_player()
+
+                self.update_game_info()
+
+                return
+
+            # =============================================
+            # WAIT 2 SECONDS
+            # =============================================
+
+            self.update_active_player()
+
+            self.update_game_info()
+
+            self.trick_timer = QTimer(self)
+
+            self.trick_timer.setSingleShot(True)
+
+            self.trick_timer.timeout.connect(
+                self.clear_trick_area
+            )
+
+            self.trick_timer.start(2000)
+
+            return
+
+        # =================================================
+        # TEMPORARY GUI TURN MOVEMENT
+        # =================================================
+
+        self.current_player = self.next_position(
+            self.current_player
+        )
+
+        self.update_active_player()
+
+        self.update_game_info()
+
+    # =====================================================
+    # SAVE TRICK
+    # =====================================================
+
+    def save_current_trick(self):
+
+        if self.game_record is None:
+
+            self.create_game_record()
+
+        if self.game_record is None:
+
+            print(
+                "ERROR: Cannot save trick."
+            )
+
+            return
+
+        plays = dict(
+            self.played_cards
+        )
+
+        if len(plays) != 4:
+
+            print(
+                "ERROR: Cannot save incomplete trick."
+            )
+
+            return
+
+        self.game_record.add_trick(
+            trick_number=self.trick_number,
+            plays=plays,
+        )
+
+        print(
+            f"Trick {self.trick_number} "
+            f"saved to game history."
+        )
+
+    # =====================================================
+    # CLEAR TRICK
+    # =====================================================
+
+    def clear_trick_area(self):
+
+        self.trick_timer = None
+
+        self.played_cards = {}
+
+        self.trick_number += 1
+
+        # =================================================
+        # TEMPORARY GUI-ONLY LEADER MOVEMENT
+        # =================================================
+        #
+        # We are NOT replacing the team's trick-winner
+        # logic here.
+        #
+        # Until trick resolution is implemented, the GUI
+        # simply continues clockwise.
+        # =================================================
+
+        if self.current_player is not None:
+
+            self.current_player = self.next_position(
+                self.current_player
+            )
+
+        self.update_trick_area()
+
+        self.update_active_player()
+
+        self.update_game_info()
+
+    # =====================================================
+    # TEMPORARY CLOCKWISE MOVEMENT
+    # =====================================================
+
+    @staticmethod
+    def next_position(position):
+
+        clockwise = {
+            Position.SOUTH: Position.WEST,
+            Position.WEST: Position.NORTH,
+            Position.NORTH: Position.EAST,
+            Position.EAST: Position.SOUTH,
+        }
+
+        return clockwise[position]
+
+    # =====================================================
+    # ACTIVE PLAYER
+    # =====================================================
+
+    def update_active_player(self):
+
+        if not self.player_seats:
+            return
+
+        for position, seat in self.player_seats.items():
+
+            is_active = (
+                position == self.current_player
+                and not self.game_complete
+                and len(self.played_cards) < 4
+            )
+
+            seat.set_active(
+                is_active
+            )
+
+            seat.setProperty(
+                "playActive",
+                is_active,
+            )
+
+            seat.style().unpolish(seat)
+            seat.style().polish(seat)
+
+            seat.update()
+
+    # =====================================================
+    # GAME INFO
     # =====================================================
 
     def update_game_info(self):
@@ -486,176 +1070,214 @@ class PlayPage(QWidget):
         if self.contract_title is None:
             return
 
-        # -------------------------------------------------
-        # CONTRACT
-        # -------------------------------------------------
-
         self.contract_title.setText(
             self.contract_text()
         )
 
-        # -------------------------------------------------
-        # DECLARER
-        # -------------------------------------------------
-
         if self.declarer_value is not None:
 
-            if self.declarer is None:
-
-                self.declarer_value.setText("—")
-
-            else:
-
-                self.declarer_value.setText(
-                    self.position_name(
-                        self.declarer
-                    )
+            self.declarer_value.setText(
+                self.position_name(
+                    self.declarer
                 )
+            )
 
-        # -------------------------------------------------
-        # OPENING LEADER
-        # -------------------------------------------------
+        if self.dummy_value is not None:
 
-        leader = self.get_leader()
+            self.dummy_value.setText(
+                self.position_name(
+                    self.get_dummy()
+                )
+            )
 
         if self.leader_value is not None:
 
-            if leader is None:
-
-                self.leader_value.setText("—")
-
-            else:
-
-                self.leader_value.setText(
-                    self.position_name(
-                        leader
-                    )
+            self.leader_value.setText(
+                self.position_name(
+                    self.get_leader()
                 )
-
-        # -------------------------------------------------
-        # TRICK
-        # -------------------------------------------------
+            )
 
         if self.trick_value is not None:
 
-            self.trick_value.setText(
-                "1 / 13"
-            )
+            if self.game_complete:
 
-        # -------------------------------------------------
-        # TRUMP
-        # -------------------------------------------------
-
-        if self.contract is not None:
-
-            denomination = self.contract.denomination
-
-            symbol_map = {
-                Denomination.CLUBS: "♣",
-                Denomination.DIAMONDS: "♦",
-                Denomination.HEARTS: "♥",
-                Denomination.SPADES: "♠",
-                Denomination.NO_TRUMP: "NT",
-            }
-
-            if self.trump is not None:
-
-                self.trump.setText(
-                    symbol_map.get(
-                        denomination,
-                        "?"
-                    )
+                self.trick_value.setText(
+                    "13 / 13"
                 )
-
-            if self.trump_subtitle is not None:
-
-                if denomination == Denomination.NO_TRUMP:
-
-                    self.trump_subtitle.setText(
-                        "NO TRUMP"
-                    )
-
-                else:
-
-                    self.trump_subtitle.setText(
-                        "TRUMP"
-                    )
-
-        # -------------------------------------------------
-        # GAME LOG
-        # -------------------------------------------------
-
-        if self.game_log is not None:
-
-            dealer_text = (
-                self.position_name(self.dealer)
-                if self.dealer is not None
-                else "—"
-            )
-
-            if self.contract is not None:
-
-                contract_text = self.contract_text()
 
             else:
 
-                contract_text = "No contract"
+                cards_played = len(
+                    self.played_cards
+                )
 
-            leader_text = (
-                self.position_name(leader)
-                if leader is not None
-                else "—"
-            )
+                self.trick_value.setText(
+                    f"{self.trick_number} / 13 "
+                    f"({cards_played}/4)"
+                )
 
-            self.game_log.setText(
-                f"> Cards dealt. {dealer_text[0]} is the dealer "
-                f"and bids first.\n\n"
-                f"> Bidding complete — {contract_text}.\n\n"
-                f"> {leader_text[0] if leader_text != '—' else '—'} "
-                f"leads to trick 1."
-            )
+        self.update_trump_display()
 
-            self.update_active_player()
-    def set_active(self, active):
+        self.update_game_log()
 
-        self.active = active
-        self.update_style()
+    # =====================================================
+    # CONTRACT DISPLAY
+    # =====================================================
+
     def contract_text(self):
 
         if self.contract is None:
 
             return "No Contract"
 
-        declarer_letter = (
-            self.position_letter(
-                self.declarer
-            )
-            if self.declarer is not None
-            else "?"
-        )
-
         return (
             f"{self.contract.level}"
-            f"{self.contract.denomination.short}"
-            f" by {declarer_letter}"
+            f"{self.denomination_short()}"
+            f" by "
+            f"{self.position_letter(self.declarer)}"
         )
 
     # =====================================================
-    # PLAYER / POSITION HELPERS
+    # TRUMP DISPLAY
     # =====================================================
 
-    def get_partner(self, position):
+    def update_trump_display(self):
 
-        partners = {
-            Position.NORTH: Position.SOUTH,
-            Position.SOUTH: Position.NORTH,
-            Position.EAST: Position.WEST,
-            Position.WEST: Position.EAST,
+        if self.contract is None:
+            return
+
+        denomination = (
+            self.contract.denomination
+        )
+
+        symbol_map = {
+            Denomination.CLUBS: "♣",
+            Denomination.DIAMONDS: "♦",
+            Denomination.HEARTS: "♥",
+            Denomination.SPADES: "♠",
+            Denomination.NO_TRUMP: "NT",
         }
 
-        return partners.get(position)
+        symbol = symbol_map.get(
+            denomination,
+            "?",
+        )
+
+        if self.trump is not None:
+
+            self.trump.setText(
+                symbol
+            )
+
+        if self.trump_subtitle is not None:
+
+            if denomination == Denomination.NO_TRUMP:
+
+                self.trump_subtitle.setText(
+                    "NO TRUMP"
+                )
+
+            else:
+
+                self.trump_subtitle.setText(
+                    "TRUMP"
+                )
+
+    # =====================================================
+    # GAME LOG
+    # =====================================================
+
+    def update_game_log(self):
+
+        if self.game_log is None:
+            return
+
+        dealer_letter = (
+            self.position_letter(
+                self.dealer
+            )
+            if self.dealer is not None
+            else "—"
+        )
+
+        contract_text = (
+            self.contract_text()
+            if self.contract is not None
+            else "No contract"
+        )
+
+        leader = self.get_leader()
+
+        leader_letter = (
+            self.position_letter(
+                leader
+            )
+            if leader is not None
+            else "—"
+        )
+
+        current_letter = (
+            self.position_letter(
+                self.current_player
+            )
+            if self.current_player is not None
+            else "—"
+        )
+
+        tricks_saved = 0
+
+        if self.game_record is not None:
+
+            tricks_saved = (
+                self.game_record.tricks_played
+            )
+
+        if self.game_complete:
+
+            status = (
+                "> 13 tricks completed.\n\n"
+                "> Complete game saved to history.\n\n"
+                f"> {tricks_saved}/13 tricks recorded."
+            )
+
+        else:
+
+            status = (
+                f"> Current turn: "
+                f"{current_letter}.\n\n"
+                f"> {tricks_saved} trick(s) "
+                f"saved to history."
+            )
+
+        self.game_log.setText(
+            f"> Cards dealt. "
+            f"{dealer_letter} is the dealer.\n\n"
+            f"> Bidding complete — "
+            f"{contract_text}.\n\n"
+            f"> {leader_letter} leads to trick 1.\n\n"
+            f"> Trick {self.trick_number} of 13.\n\n"
+            f"{status}"
+        )
+
+    # =====================================================
+    # PLAYER ROLE
+    # =====================================================
 
     def player_role(self, position):
+
+        """
+        Determine the bridge role of a player.
+
+        Declarer:
+            The player recorded as contract.declarer.
+
+        Dummy:
+            The partner of the declarer.
+
+        Defenders:
+            The remaining two players.
+        """
 
         if self.declarer is None:
 
@@ -673,8 +1295,97 @@ class PlayPage(QWidget):
 
         return "Defender"
 
+    # =====================================================
+    # PARTNER
+    # =====================================================
+
+    @staticmethod
+    def get_partner(position):
+
+        """
+        Return the bridge partner of a position.
+        """
+
+        partners = {
+            Position.NORTH: Position.SOUTH,
+            Position.SOUTH: Position.NORTH,
+            Position.EAST: Position.WEST,
+            Position.WEST: Position.EAST,
+        }
+
+        return partners.get(position)
+
+    # =====================================================
+    # DUMMY
+    # =====================================================
+
+    def get_dummy(self):
+
+        """
+        Dummy is always the declarer's partner.
+        """
+
+        if self.declarer is None:
+
+            return None
+
+        return self.get_partner(
+            self.declarer
+        )
+
+    # =====================================================
+    # OPENING LEADER
+    # =====================================================
+
     def get_leader(self):
-        return determine_opening_leader(self.declarer)
+
+        if self.declarer is None:
+
+            return None
+
+        # =================================================
+        # USE EXISTING TEAM LOGIC
+        # =================================================
+
+        return determine_opening_leader(
+            self.declarer
+        )
+
+    # =====================================================
+    # DENOMINATION
+    # =====================================================
+
+    def denomination_short(self):
+
+        if self.contract is None:
+
+            return ""
+
+        denomination = (
+            self.contract.denomination
+        )
+
+        if hasattr(
+            denomination,
+            "short",
+        ):
+
+            return denomination.short
+
+        return {
+            Denomination.CLUBS: "C",
+            Denomination.DIAMONDS: "D",
+            Denomination.HEARTS: "H",
+            Denomination.SPADES: "S",
+            Denomination.NO_TRUMP: "NT",
+        }.get(
+            denomination,
+            "?",
+        )
+
+    # =====================================================
+    # POSITION HELPERS
+    # =====================================================
 
     @staticmethod
     def position_name(position):
@@ -718,50 +1429,73 @@ class PlayPage(QWidget):
             30,
             30,
             30,
-            30
+            30,
         )
 
         grid.setSpacing(12)
 
-        north = self.trick_slot()
-        west = self.trick_slot()
+        north = self.trick_slot(
+            Position.NORTH
+        )
+
+        west = self.trick_slot(
+            Position.WEST
+        )
+
         centre = self.trump_label()
-        east = self.trick_slot()
-        south = self.trick_slot()
+
+        east = self.trick_slot(
+            Position.EAST
+        )
+
+        south = self.trick_slot(
+            Position.SOUTH
+        )
+
+        self.trick_slots = {
+            Position.NORTH: north,
+            Position.WEST: west,
+            Position.EAST: east,
+            Position.SOUTH: south,
+        }
 
         grid.addWidget(
             north,
             0,
-            1
+            1,
         )
 
         grid.addWidget(
             west,
             1,
-            0
+            0,
         )
 
         grid.addWidget(
             centre,
             1,
-            1
+            1,
         )
 
         grid.addWidget(
             east,
             1,
-            2
+            2,
         )
 
         grid.addWidget(
             south,
             2,
-            1
+            1,
         )
 
         return container
 
-    def trick_slot(self):
+    # =====================================================
+    # TRICK SLOT
+    # =====================================================
+
+    def trick_slot(self, position):
 
         slot = QFrame()
 
@@ -771,10 +1505,49 @@ class PlayPage(QWidget):
 
         slot.setFixedSize(
             70,
-            100
+            100,
         )
 
+        slot.position = position
+
         return slot
+
+    # =====================================================
+    # UPDATE TRICK AREA
+    # =====================================================
+
+    def update_trick_area(self):
+
+        for position, slot in self.trick_slots.items():
+
+            for child in slot.findChildren(
+                CardWidget
+            ):
+
+                child.deleteLater()
+
+            if position not in self.played_cards:
+
+                continue
+
+            card = self.played_cards[position]
+
+            card_widget = CardWidget(card)
+
+            card_widget.setEnabled(False)
+
+            card_widget.setParent(slot)
+
+            card_widget.move(
+                14,
+                16,
+            )
+
+            card_widget.show()
+
+    # =====================================================
+    # TRUMP LABEL
+    # =====================================================
 
     def trump_label(self):
 
@@ -782,23 +1555,46 @@ class PlayPage(QWidget):
 
         layout = QVBoxLayout(widget)
 
-        layout.setAlignment(Qt.AlignCenter)
+        layout.setAlignment(
+            Qt.AlignCenter
+        )
 
-        self.trump = QLabel("NT")
-        self.trump.setObjectName("trump")
-        self.trump.setAlignment(Qt.AlignCenter)
+        self.trump = QLabel(
+            "NT"
+        )
 
-        self.trump_subtitle = QLabel("TRUMP")
-        self.trump_subtitle.setObjectName("trumpSubtitle")
-        self.trump_subtitle.setAlignment(Qt.AlignCenter)
+        self.trump.setObjectName(
+            "trump"
+        )
 
-        layout.addWidget(self.trump)
-        layout.addWidget(self.trump_subtitle)
+        self.trump.setAlignment(
+            Qt.AlignCenter
+        )
+
+        self.trump_subtitle = QLabel(
+            "TRUMP"
+        )
+
+        self.trump_subtitle.setObjectName(
+            "trumpSubtitle"
+        )
+
+        self.trump_subtitle.setAlignment(
+            Qt.AlignCenter
+        )
+
+        layout.addWidget(
+            self.trump
+        )
+
+        layout.addWidget(
+            self.trump_subtitle
+        )
 
         return widget
 
     # =====================================================
-    # SIDEBAR HELPERS
+    # SIDEBAR ROW
     # =====================================================
 
     def add_side_row(
@@ -811,17 +1607,13 @@ class PlayPage(QWidget):
 
         row = QHBoxLayout()
 
-        left = QLabel(
-            label
-        )
+        left = QLabel(label)
 
         left.setObjectName(
             "sideLabel"
         )
 
-        right = QLabel(
-            value
-        )
+        right = QLabel(value)
 
         right.setObjectName(
             "sideValue"
@@ -836,13 +1628,18 @@ class PlayPage(QWidget):
             setattr(
                 self,
                 key,
-                right
+                right,
             )
 
         row.addWidget(left)
+
         row.addWidget(right)
 
         layout.addLayout(row)
+
+    # =====================================================
+    # SCORE BOX
+    # =====================================================
 
     def create_score_box(
         self,
@@ -863,25 +1660,19 @@ class PlayPage(QWidget):
             Qt.AlignCenter
         )
 
-        title_label = QLabel(
-            title
-        )
+        title_label = QLabel(title)
 
         title_label.setObjectName(
             "scoreTitle"
         )
 
-        score_label = QLabel(
-            score
-        )
+        score_label = QLabel(score)
 
         score_label.setObjectName(
             "score"
         )
 
-        needed_label = QLabel(
-            needed
-        )
+        needed_label = QLabel(needed)
 
         needed_label.setObjectName(
             "needed"
@@ -923,6 +1714,16 @@ class PlayPage(QWidget):
             border-radius: 10px;
         }
 
+        QFrame#playerSeat[playActive="true"] {
+            border: 3px solid #e5c557;
+            border-radius: 10px;
+        }
+
+        QFrame#playerSeat[playActive="false"] {
+            border: 1px solid transparent;
+            border-radius: 10px;
+        }
+
         QFrame#sidePanel,
         QFrame#scoreBox {
             background-color: #11271d;
@@ -945,7 +1746,6 @@ class PlayPage(QWidget):
         QLabel#sideLabel {
             color: #b9c8c1;
             font-size: 12px;
-            letter-spacing: 1px;
             padding: 5px 0px;
         }
 
@@ -962,7 +1762,6 @@ class PlayPage(QWidget):
         QLabel#scoreTitle {
             color: #b9c8c1;
             font-size: 12px;
-            letter-spacing: 1px;
         }
 
         QLabel#score {
@@ -974,7 +1773,6 @@ class PlayPage(QWidget):
         QLabel#needed {
             color: #b9c8c1;
             font-size: 12px;
-            letter-spacing: 1px;
         }
 
         QFrame#trickSlot {
@@ -992,19 +1790,27 @@ class PlayPage(QWidget):
         QLabel#trumpSubtitle {
             color: #b9c8c1;
             font-size: 12px;
-            letter-spacing: 1px;
         }
 
         QLabel#logTitle {
             color: #b9c8c1;
             font-size: 12px;
-            letter-spacing: 1px;
         }
 
         QLabel#gameLog {
             color: #d1dbd5;
             font-family: Consolas, monospace;
             font-size: 12px;
+        }
+
+        QLabel#gameComplete {
+            background-color: #11271d;
+            color: #e5c557;
+            border: 1px solid #e5c557;
+            border-radius: 8px;
+            padding: 14px;
+            font-size: 14px;
+            font-weight: bold;
         }
 
         QPushButton#resultsButton {
@@ -1018,6 +1824,11 @@ class PlayPage(QWidget):
 
         QPushButton#resultsButton:hover {
             background-color: #68c4c8;
+        }
+
+        QPushButton#resultsButton:disabled {
+            background-color: #29483b;
+            color: #71847b;
         }
 
         """

@@ -14,6 +14,9 @@ from .bidding_page import BiddingPage
 from .play_page import PlayPage
 from .placeholder_page import PlaceholderPage
 
+from game_history.history_manager import HistoryManager
+from .history_page import HistoryPage
+
 
 class MainWindow(QMainWindow):
 
@@ -24,18 +27,49 @@ class MainWindow(QMainWindow):
         # WINDOW
         # -------------------------------------------------
 
-        self.setWindowTitle("BridgeTut")
+        self.setWindowTitle(
+            "BridgeTut"
+        )
 
-        self.resize(1248, 856)
-        self.setMinimumSize(1000, 700)
+        self.resize(
+            1248,
+            856
+        )
 
-        # Data passed from Bidding -> Play.
-        # BiddingPage will fill this when the auction finishes.
+        self.setMinimumSize(
+            1000,
+            700
+        )
+
+        # -------------------------------------------------
+        # DATA PASSED FROM BIDDING -> PLAY
+        # -------------------------------------------------
+
         self.play_data = None
 
-        self.setStyleSheet(self.get_stylesheet())
+        # -------------------------------------------------
+        # GAME HISTORY
+        # -------------------------------------------------
+
+        self.history_manager = HistoryManager()
+
+        # -------------------------------------------------
+        # STYLE
+        # -------------------------------------------------
+
+        self.setStyleSheet(
+            self.get_stylesheet()
+        )
+
+        # -------------------------------------------------
+        # BUILD UI
+        # -------------------------------------------------
 
         self.setup_ui()
+
+    # =====================================================
+    # UI
+    # =====================================================
 
     def setup_ui(self):
 
@@ -44,44 +78,86 @@ class MainWindow(QMainWindow):
         # -------------------------------------------------
 
         central_widget = QWidget()
-        central_widget.setObjectName("centralWidget")
 
-        self.setCentralWidget(central_widget)
+        central_widget.setObjectName(
+            "centralWidget"
+        )
 
-        main_layout = QVBoxLayout(central_widget)
+        self.setCentralWidget(
+            central_widget
+        )
 
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+        main_layout = QVBoxLayout(
+            central_widget
+        )
+
+        main_layout.setContentsMargins(
+            0,
+            0,
+            0,
+            0
+        )
+
+        main_layout.setSpacing(
+            0
+        )
 
         # -------------------------------------------------
         # NAVIGATION BAR
         # -------------------------------------------------
 
         navigation = QWidget()
-        navigation.setObjectName("navigationBar")
 
-        nav_layout = QHBoxLayout(navigation)
+        navigation.setObjectName(
+            "navigationBar"
+        )
 
-        nav_layout.setContentsMargins(20, 0, 20, 0)
-        nav_layout.setSpacing(8)
+        nav_layout = QHBoxLayout(
+            navigation
+        )
+
+        nav_layout.setContentsMargins(
+            20,
+            0,
+            20,
+            0
+        )
+
+        nav_layout.setSpacing(
+            8
+        )
 
         # -------------------------------------------------
         # BRAND
         # -------------------------------------------------
 
-        brand = QLabel("BridgeTut")
-        brand.setObjectName("brand")
+        brand = QLabel(
+            "BridgeTut"
+        )
 
-        nav_layout.addWidget(brand)
+        brand.setObjectName(
+            "brand"
+        )
+
+        nav_layout.addWidget(
+            brand
+        )
 
         # -------------------------------------------------
         # PAGE TITLE
         # -------------------------------------------------
 
-        page_title = QLabel("Home")
-        page_title.setObjectName("pageTitle")
+        page_title = QLabel(
+            "Home"
+        )
 
-        nav_layout.addWidget(page_title)
+        page_title.setObjectName(
+            "pageTitle"
+        )
+
+        nav_layout.addWidget(
+            page_title
+        )
 
         nav_layout.addStretch()
 
@@ -93,7 +169,6 @@ class MainWindow(QMainWindow):
 
         pages = [
             "Home",
-            "Deal",
             "Bidding",
             "Play",
             "Results",
@@ -102,19 +177,33 @@ class MainWindow(QMainWindow):
 
         for name in pages:
 
-            button = QPushButton(name)
-            button.setObjectName("navButton")
-            button.setCursor(Qt.PointingHandCursor)
+            button = QPushButton(
+                name
+            )
+
+            button.setObjectName(
+                "navButton"
+            )
+
+            button.setCursor(
+                Qt.PointingHandCursor
+            )
 
             button.clicked.connect(
-                lambda checked=False, page=name:
+                lambda checked=False,
+                page=name:
                 self.navigate(page)
             )
 
             self.nav_buttons[name] = button
-            nav_layout.addWidget(button)
 
-        main_layout.addWidget(navigation)
+            nav_layout.addWidget(
+                button
+            )
+
+        main_layout.addWidget(
+            navigation
+        )
 
         # -------------------------------------------------
         # PAGE STACK
@@ -122,82 +211,161 @@ class MainWindow(QMainWindow):
 
         self.pages = QStackedWidget()
 
-        main_layout.addWidget(self.pages)
+        main_layout.addWidget(
+            self.pages
+        )
 
-        # -------------------------------------------------
+        # =================================================
         # HOME
-        # -------------------------------------------------
+        # =================================================
 
         self.home_page = HomePage(
             new_game_callback=lambda:
-            self.navigate("Bidding")
+            self.start_new_game(),
+
+            history_callback=lambda:
+            self.navigate("History"),
         )
 
-        self.pages.addWidget(self.home_page)
+        self.pages.addWidget(
+            self.home_page
+        )
 
-        # -------------------------------------------------
+        # =================================================
         # DEAL
-        # -------------------------------------------------
+        # =================================================
 
         self.deal_page = PlaceholderPage(
             "Deal",
             "Deal screen will be connected to the Deck."
         )
 
-        self.pages.addWidget(self.deal_page)
+        self.pages.addWidget(
+            self.deal_page
+        )
 
-        # -------------------------------------------------
+        # =================================================
         # BIDDING
-        # -------------------------------------------------
+        # =================================================
 
         self.bidding_page = BiddingPage()
 
-        self.pages.addWidget(self.bidding_page)
+        self.pages.addWidget(
+            self.bidding_page
+        )
 
-        # -------------------------------------------------
+        # =================================================
         # PLAY
-        # -------------------------------------------------
-        #
-        # IMPORTANT:
-        # This used to be PlaceholderPage.
-        # It is now the actual PlayPage.
-        #
+        # =================================================
 
         self.play_page = PlayPage()
 
-        self.pages.addWidget(self.play_page)
+        self.pages.addWidget(
+            self.play_page
+        )
 
-        # -------------------------------------------------
+        # =================================================
         # RESULTS
-        # -------------------------------------------------
+        # =================================================
 
         self.results_page = PlaceholderPage(
             "Results",
             "Results screen will be connected to scoring."
         )
 
-        self.pages.addWidget(self.results_page)
-
-        # -------------------------------------------------
-        # HISTORY
-        # -------------------------------------------------
-
-        self.history_page = PlaceholderPage(
-            "History",
-            "Game history will appear here."
+        self.pages.addWidget(
+            self.results_page
         )
 
-        self.pages.addWidget(self.history_page)
+        # =================================================
+        # HISTORY
+        # =================================================
+
+        self.history_page = HistoryPage(
+            self.history_manager
+        )
+
+        self.pages.addWidget(
+            self.history_page
+        )
+
+        # -------------------------------------------------
+        # STORE PAGE TITLE
+        # -------------------------------------------------
 
         self.page_title = page_title
 
-        self.navigate("Home")
+        # -------------------------------------------------
+        # CONNECT PLAY -> RESULTS
+        # -------------------------------------------------
+
+        self.play_page.results_button_clicked.connect(
+            lambda:
+            self.navigate("Results")
+        )
+
+        # -------------------------------------------------
+        # START ON HOME
+        # -------------------------------------------------
+
+        self.navigate(
+            "Home"
+        )
+
+    # =====================================================
+    # NEW GAME
+    # =====================================================
+
+    def start_new_game(self):
+
+        # -------------------------------------------------
+        # Reset the existing PlayPage completely
+        # -------------------------------------------------
+
+        self.play_page.reset_for_new_game()
+
+        # -------------------------------------------------
+        # Create a fresh bidding page
+        # -------------------------------------------------
+
+        old_bidding_page = self.bidding_page
+
+        self.bidding_page = BiddingPage()
+
+        # Replace the existing bidding page at index 2.
+        self.pages.insertWidget(
+            2,
+            self.bidding_page
+        )
+
+        self.pages.removeWidget(
+            old_bidding_page
+        )
+
+        old_bidding_page.deleteLater()
+
+        # -------------------------------------------------
+        # Reset play data
+        # -------------------------------------------------
+
+        self.play_data = None
+
+        # -------------------------------------------------
+        # Go to bidding
+        # -------------------------------------------------
+
+        self.navigate(
+            "Bidding"
+        )
 
     # =====================================================
     # NAVIGATION
     # =====================================================
 
-    def navigate(self, page_name):
+    def navigate(
+        self,
+        page_name
+    ):
 
         page_indexes = {
             "Home": 0,
@@ -219,6 +387,10 @@ class MainWindow(QMainWindow):
             page_name
         )
 
+        # -------------------------------------------------
+        # ACTIVE NAVIGATION BUTTON
+        # -------------------------------------------------
+
         for name, button in self.nav_buttons.items():
 
             button.setProperty(
@@ -226,12 +398,29 @@ class MainWindow(QMainWindow):
                 name == page_name
             )
 
-            button.style().unpolish(button)
-            button.style().polish(button)
+            button.style().unpolish(
+                button
+            )
 
-        # Make sure Play receives the latest bidding data.
+            button.style().polish(
+                button
+            )
+
+        # -------------------------------------------------
+        # PLAY
+        # -------------------------------------------------
+
         if page_name == "Play":
+
             self.play_page.load_game()
+
+        # -------------------------------------------------
+        # HISTORY
+        # -------------------------------------------------
+
+        if page_name == "History":
+
+            self.history_page.refresh_history()
 
     # =====================================================
     # APPLICATION STYLE
@@ -364,3 +553,4 @@ class MainWindow(QMainWindow):
         }
 
         """
+
