@@ -61,7 +61,6 @@ class BiddingPage(QWidget):
         # PlayPage must NOT create another deal.
         self.players = new_deal(
             dealer=self.dealer,
-            seed=42,
         )
 
         # =================================================
