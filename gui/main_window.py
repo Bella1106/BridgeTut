@@ -17,6 +17,9 @@ from .placeholder_page import PlaceholderPage
 from game_history.history_manager import HistoryManager
 from .history_page import HistoryPage
 
+from card_model.player import Position
+from game_logic.dealer import determine_next_dealer
+
 
 class MainWindow(QMainWindow):
 
@@ -40,6 +43,14 @@ class MainWindow(QMainWindow):
             1000,
             700
         )
+
+        # -------------------------------------------------
+        # DEALER
+        # -------------------------------------------------
+
+        # South is the dealer for the first game.
+        # The dealer rotates after each new game.
+        self.current_dealer = Position.SOUTH
 
         # -------------------------------------------------
         # DATA PASSED FROM BIDDING -> PLAY
@@ -248,7 +259,9 @@ class MainWindow(QMainWindow):
         # BIDDING
         # =================================================
 
-        self.bidding_page = BiddingPage()
+        self.bidding_page = BiddingPage(
+            dealer=self.current_dealer
+        )
 
         self.pages.addWidget(
             self.bidding_page
@@ -325,12 +338,22 @@ class MainWindow(QMainWindow):
         self.play_page.reset_for_new_game()
 
         # -------------------------------------------------
-        # Create a fresh bidding page
+        # Rotate dealer
+        # -------------------------------------------------
+
+        self.current_dealer = determine_next_dealer(
+            self.current_dealer
+        )
+
+        # -------------------------------------------------
+        # Replace the existing BiddingPage
         # -------------------------------------------------
 
         old_bidding_page = self.bidding_page
 
-        self.bidding_page = BiddingPage()
+        self.bidding_page = BiddingPage(
+            dealer=self.current_dealer
+        )
 
         # Replace the existing bidding page at index 2.
         self.pages.insertWidget(
@@ -553,4 +576,3 @@ class MainWindow(QMainWindow):
         }
 
         """
-
