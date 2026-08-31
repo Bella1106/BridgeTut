@@ -41,16 +41,21 @@ from .widgets.player_seat import PlayerSeat
 
 class BiddingPage(QWidget):
 
-    def __init__(self, parent=None):
+    def __init__(
+        self,
+        dealer=Position.SOUTH,
+        parent=None
+    ):
         super().__init__(parent)
 
         # =================================================
         # DEALER
         # =================================================
 
-        # Dealer logic has not been implemented by the team yet.
-        # South remains the temporary dealer.
-        self.dealer = Position.SOUTH
+        # Dealer is supplied by MainWindow.
+        # The first game defaults to South.
+        # Subsequent games use dealer rotation.
+        self.dealer = dealer
 
         # =================================================
         # DEAL
@@ -142,33 +147,57 @@ class BiddingPage(QWidget):
 
         north = PlayerSeat(
             self.players[Position.NORTH],
-            role="",
+            role=(
+                "Dealer"
+                if self.dealer == Position.NORTH
+                else ""
+            ),
             active=False,
-            dealer=False,
+            dealer=(
+                self.dealer == Position.NORTH
+            ),
             hand_orientation="horizontal",
         )
 
         east = PlayerSeat(
             self.players[Position.EAST],
-            role="",
+            role=(
+                "Dealer"
+                if self.dealer == Position.EAST
+                else ""
+            ),
             active=False,
-            dealer=False,
+            dealer=(
+                self.dealer == Position.EAST
+            ),
             hand_orientation="horizontal",
         )
 
         west = PlayerSeat(
             self.players[Position.WEST],
-            role="",
+            role=(
+                "Dealer"
+                if self.dealer == Position.WEST
+                else ""
+            ),
             active=False,
-            dealer=False,
+            dealer=(
+                self.dealer == Position.WEST
+            ),
             hand_orientation="horizontal",
         )
 
         south = PlayerSeat(
             self.players[Position.SOUTH],
-            role="Dealer",
+            role=(
+                "Dealer"
+                if self.dealer == Position.SOUTH
+                else ""
+            ),
             active=False,
-            dealer=False,
+            dealer=(
+                self.dealer == Position.SOUTH
+            ),
             hand_orientation="horizontal",
         )
 
@@ -723,15 +752,23 @@ class BiddingPage(QWidget):
                 and not self.auction_completed
             )
 
-            seat.set_active(is_current)
+            seat.set_active(
+                is_current
+            )
 
             seat.setProperty(
                 "biddingActive",
                 is_current,
             )
 
-            seat.style().unpolish(seat)
-            seat.style().polish(seat)
+            seat.style().unpolish(
+                seat
+            )
+
+            seat.style().polish(
+                seat
+            )
+
             seat.update()
 
     # =====================================================
@@ -783,12 +820,16 @@ class BiddingPage(QWidget):
 
             if len(current_row) == 4:
 
-                rows.append(current_row)
+                rows.append(
+                    current_row
+                )
 
                 current_row = []
 
         if current_row:
-            rows.append(current_row)
+            rows.append(
+                current_row
+            )
 
         for auction_row in rows:
 
@@ -805,7 +846,9 @@ class BiddingPage(QWidget):
                 0,
             )
 
-            row_layout.setSpacing(4)
+            row_layout.setSpacing(
+                4
+            )
 
             cells = {
                 Position.NORTH: "",
@@ -819,7 +862,9 @@ class BiddingPage(QWidget):
                 if bid is None:
                     text = "Pass"
                 else:
-                    text = self.bid_text(bid)
+                    text = self.bid_text(
+                        bid
+                    )
 
                 cells[position] = text
 
@@ -842,7 +887,9 @@ class BiddingPage(QWidget):
                     "auctionCall"
                 )
 
-                row_layout.addWidget(label)
+                row_layout.addWidget(
+                    label
+                )
 
             self.auction_layout.addWidget(
                 row_widget
@@ -880,9 +927,6 @@ class BiddingPage(QWidget):
             self.bidding_system
         )
 
-        # IMPORTANT:
-        # We do NOT calculate the declarer here.
-        # The existing contract/declarer code does that.
         declarer = None
 
         if contract is not None:
@@ -918,7 +962,9 @@ class BiddingPage(QWidget):
 
         if hasattr(window, "navigate"):
 
-            window.navigate("Play")
+            window.navigate(
+                "Play"
+            )
 
     # =====================================================
     # DISPLAY HELPERS
