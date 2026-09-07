@@ -17,6 +17,7 @@ class CardWidget(QPushButton):
 
         self.card = card
         self.selected = False
+        self.invalid = False
 
         self.setFixedSize(42, 68)
 
@@ -123,6 +124,12 @@ class CardWidget(QPushButton):
 
         self.update_style()
 
+    def mark_invalid(self):
+        self.invalid = True
+        self.selected = False
+
+        self.update_style()
+
     def update_style(self):
 
         suit_name = self.card.suit.name
@@ -132,11 +139,12 @@ class CardWidget(QPushButton):
         else:
             suit_color = "#111111"
 
-        border = (
-            "#e5c557"
-            if self.selected
-            else "#aaa"
-        )
+        if self.invalid:
+            border = "#c5162e"
+        elif self.selected:
+            border = "#e5c557"
+        else:
+            border = "#aaa"
 
         background = "#fffef7"
 

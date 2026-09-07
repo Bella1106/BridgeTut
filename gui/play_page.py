@@ -56,6 +56,7 @@ from card_model.deck import new_deal
 from card_model.player import Position
 
 from game_logic.declarer import determine_opening_leader
+from game_logic.play_validation import is_valid_play
 
 from .widgets.player_seat import PlayerSeat
 from .widgets.card_widget import CardWidget
@@ -829,7 +830,24 @@ class PlayPage(QWidget):
             self.current_player
         ]
 
-        if card not in player.hand:
+        led_suit = None
+
+        if self.played_cards:
+            first_card = next(iter(self.played_cards.values()))
+            led_suit = first_card.suit
+
+        if not is_valid_play(
+            player.hand,
+            card,
+            led_suit,
+        ):
+            seat = self.player_seats.get(self.current_player)
+
+            if seat is not None:
+                for card_widget in seat.cards:
+                    if card_widget.card == card:
+                        card_widget.mark_invalid()
+                        break
             return
 
         print(
