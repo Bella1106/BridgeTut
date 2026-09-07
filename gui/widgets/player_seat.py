@@ -49,6 +49,14 @@ class PlayerSeat(QFrame):
         self.hand_widget = None
         self.card_count_label = None
 
+        # IMPORTANT:
+        # The gold border is controlled by the
+        # biddingActive Qt property.
+        self.setProperty(
+            "biddingActive",
+            active,
+        )
+
         self.setup_ui()
 
     # =====================================================
@@ -129,15 +137,12 @@ class PlayerSeat(QFrame):
 
         self.rebuild_hand()
 
-        self.update_style()
-
     # =====================================================
     # REBUILD HAND
     # =====================================================
 
     def rebuild_hand(self):
 
-        # Remove previous hand widget.
         if self.hand_widget is not None:
 
             self.main_layout.removeWidget(
@@ -148,7 +153,6 @@ class PlayerSeat(QFrame):
 
             self.hand_widget = None
 
-        # Update card count.
         if self.card_count_label is not None:
 
             self.card_count_label.setText(
@@ -165,17 +169,14 @@ class PlayerSeat(QFrame):
 
             card_widget = CardWidget(card)
 
-            # Make sure the widget knows its card.
             card_widget.card = card
 
-            # Send the clicked card to the parent page.
             card_widget.clicked.connect(
                 lambda checked=False,
                 c=card:
                 self.card_clicked.emit(c)
             )
 
-            # Only the active player's cards can be clicked.
             card_widget.setEnabled(
                 self.active
             )
@@ -436,8 +437,21 @@ class PlayerSeat(QFrame):
                 active
             )
 
-        # Update the visual border.
-        self.update_style()
+        # -------------------------------------------------
+        # IMPORTANT:
+        # Update the Qt property used by the stylesheet.
+        # -------------------------------------------------
+
+        self.setProperty(
+            "biddingActive",
+            active,
+        )
+
+        # Force Qt to re-evaluate the stylesheet.
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+        self.update()
 
     # =====================================================
     # DEALER
@@ -447,7 +461,11 @@ class PlayerSeat(QFrame):
 
         self.dealer = dealer
 
-        self.update_style()
+        # Dealer does NOT control the gold border.
+        #
+        # The gold border is only for the active bidder.
+
+        self.update()
 
     # =====================================================
     # RESPONSIVE RESIZE
@@ -467,61 +485,17 @@ class PlayerSeat(QFrame):
 
     def update_style(self):
 
-        # -------------------------------------------------
-        # ACTIVE PLAYER
-        # -------------------------------------------------
+        # Keep this method for compatibility with existing
+        # code. The actual border is controlled by the
+        # biddingActive Qt property in BiddingPage's
+        # stylesheet.
 
-        if self.active:
-
-            border = "3px solid #e5c557"
-
-        else:
-
-            border = "1px solid transparent"
-
-        # -------------------------------------------------
-        # DEALER
-        # -------------------------------------------------
-
-        # Dealer receives a gold border only when they are
-        # not already the active player.
-        #
-        # If the dealer is active, the active-player border
-        # is already gold and should not be duplicated.
-
-        if self.dealer and not self.active:
-
-            border = "2px solid #e5c557"
-
-        self.setStyleSheet(
-            f"""
-            QFrame#playerSeat {{
-                background-color: #00582b;
-                border: {border};
-                border-radius: 10px;
-            }}
-
-            QLabel#playerPosition {{
-                color: #e5c557;
-                font-size: 14px;
-                font-weight: bold;
-                background: transparent;
-                border: none;
-            }}
-
-            QLabel#playerRole {{
-                color: #e5c557;
-                font-size: 12px;
-                font-weight: bold;
-                background: transparent;
-                border: none;
-            }}
-
-            QLabel#cardCount {{
-                color: #aebbb5;
-                font-size: 12px;
-                background: transparent;
-                border: none;
-            }}
-            """
+        self.setProperty(
+            "biddingActive",
+            self.active,
         )
+
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+        self.update()
