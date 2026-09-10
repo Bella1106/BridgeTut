@@ -1,9 +1,8 @@
 """
 Play screen for BridgeTut.
 
-The GUI uses the existing Contract and declarer logic.
-
-The PlayPage does NOT determine the declarer itself.
+The GUI uses the existing Contract, declarer, play-validation,
+and trick-resolution logic.
 
 Flow:
 
@@ -13,7 +12,6 @@ Flow:
         v
     determine_contract()
         |
-        | existing declarer.py
         v
     Contract
         |
@@ -22,21 +20,19 @@ Flow:
 
 The same deal created by BiddingPage is used for play.
 
-Current GUI-only play behaviour:
+Backend responsibilities:
+    - Play validation
+    - Led-suit determination
+    - Trick winner determination
+    - Contract/declarer logic
 
-    1. Opening leader is obtained from the existing declarer logic.
-    2. User clicks a card.
-    3. Card is removed from the player's hand.
-    4. Card appears in the centre.
-    5. Turn moves clockwise.
-    6. After four cards, the completed trick remains visible
-       for 2 seconds.
-    7. The trick is saved to the GameRecord.
-    8. The next trick begins.
-    9. After trick 13, the game is complete.
-
-Play validation, trick winners, scoring, etc. remain
-responsibilities of the appropriate backend components.
+GUI responsibilities:
+    - Display players and cards
+    - Handle card clicks
+    - Display tricks
+    - Move turns
+    - Start the next trick using the backend winner
+    - Save completed tricks to GameRecord
 """
 
 from PySide6.QtCore import Qt, QTimer, Signal
@@ -52,11 +48,16 @@ from PySide6.QtWidgets import (
 
 from bidding.bid import Denomination
 
+from card_model.card import Suit
 from card_model.deck import new_deal
 from card_model.player import Position
 
 from game_logic.declarer import determine_opening_leader
 from game_logic.play_validation import is_valid_play
+from game_logic.trick_resolution import (
+    determine_led_suit,
+    determine_trick_winner,
+)
 
 from .widgets.player_seat import PlayerSeat
 from .widgets.card_widget import CardWidget
@@ -108,6 +109,8 @@ class PlayPage(QWidget):
 
         self.trick_timer = None
 
+        self.trick_winner = None
+
         # =================================================
         # UI
         # =================================================
@@ -125,6 +128,11 @@ class PlayPage(QWidget):
         self.trick_value = None
 
         self.game_log = None
+
+        # IMPORTANT:
+        # Keep the backend trump Suit separate from
+        # the centre trump QLabel.
+        self.trump_suit = None
 
         self.trump = None
 
@@ -179,16 +187,6 @@ class PlayPage(QWidget):
             # =================================================
             # DECLARER
             # =================================================
-            #
-            # The Contract is the authoritative source for
-            # the declarer.
-            #
-            # BiddingPage already gets the declarer from:
-            #
-            #     contract.declarer
-            #
-            # PlayPage simply displays that result.
-            # =================================================
 
             self.declarer = data.get("declarer")
 
@@ -223,6 +221,14 @@ class PlayPage(QWidget):
 
             self.game_record = None
 
+            self.trick_winner = None
+
+            # =================================================
+            # SET TRUMP
+            # =================================================
+
+            self.trump_suit = self.get_trump_suit()
+
             # =================================================
             # RESET COMPLETION UI
             # =================================================
@@ -240,11 +246,6 @@ class PlayPage(QWidget):
             # =================================================
 
             self.current_player = self.get_leader()
-
-            # Development fallback only.
-            if self.current_player is None:
-
-                self.current_player = Position.SOUTH
 
             # =================================================
             # CREATE GAME RECORD
@@ -281,7 +282,11 @@ class PlayPage(QWidget):
 
             self.game_record = None
 
-            self.current_player = Position.SOUTH
+            self.trick_winner = None
+
+            self.trump_suit = None
+
+            self.current_player = None
 
             if self.game_complete_label is not None:
 
@@ -314,6 +319,8 @@ class PlayPage(QWidget):
         self.update_active_player()
 
         self.update_trick_area()
+
+        self.update_playable_cards()
 
     # =====================================================
     # CREATE GAME RECORD
@@ -384,6 +391,12 @@ class PlayPage(QWidget):
 
         self.game_complete = False
 
+        self.trick_winner = None
+
+        self.trump_suit = None
+
+        self.trump = None
+
         self.game_loaded = False
 
         if self.game_complete_label is not None:
@@ -437,10 +450,6 @@ class PlayPage(QWidget):
         # =================================================
 
         opening_leader = self.get_leader()
-
-        if opening_leader is None:
-
-            opening_leader = Position.SOUTH
 
         self.current_player = opening_leader
 
@@ -830,24 +839,38 @@ class PlayPage(QWidget):
             self.current_player
         ]
 
-        led_suit = None
+        # =================================================
+        # DETERMINE LED SUIT USING TEAM LOGIC
+        # =================================================
 
-        if self.played_cards:
-            first_card = next(iter(self.played_cards.values()))
-            led_suit = first_card.suit
+        led_suit = determine_led_suit(
+            self.played_cards
+        )
+
+        # =================================================
+        # VALIDATE PLAY USING TEAM LOGIC
+        # =================================================
 
         if not is_valid_play(
             player.hand,
             card,
             led_suit,
         ):
-            seat = self.player_seats.get(self.current_player)
+
+            seat = self.player_seats.get(
+                self.current_player
+            )
 
             if seat is not None:
+
                 for card_widget in seat.cards:
+
                     if card_widget.card == card:
+
                         card_widget.mark_invalid()
+
                         break
+
             return
 
         print(
@@ -858,7 +881,7 @@ class PlayPage(QWidget):
         )
 
         # =================================================
-        # REMOVE CARD
+        # REMOVE CARD FROM HAND
         # =================================================
 
         player.hand.remove(card)
@@ -890,10 +913,23 @@ class PlayPage(QWidget):
         self.update_trick_area()
 
         # =================================================
-        # FOUR CARDS
+        # FOUR CARDS = TRICK COMPLETE
         # =================================================
 
         if len(self.played_cards) == 4:
+
+            self.trick_winner = (
+                determine_trick_winner(
+                    self.played_cards,
+                    self.trump_suit,
+                )
+            )
+
+            print(
+                f"Trick {self.trick_number} "
+                f"winner: "
+                f"{self.position_name(self.trick_winner)}"
+            )
 
             self.save_current_trick()
 
@@ -923,22 +959,26 @@ class PlayPage(QWidget):
 
                 self.update_game_info()
 
+                self.update_playable_cards()
+
                 return
 
             # =============================================
-            # WAIT 2 SECONDS
+            # KEEP TRICK VISIBLE FOR 2 SECONDS
             # =============================================
 
             self.update_active_player()
 
             self.update_game_info()
 
+            self.update_playable_cards()
+
             self.trick_timer = QTimer(self)
 
             self.trick_timer.setSingleShot(True)
 
             self.trick_timer.timeout.connect(
-                self.clear_trick_area
+                self.start_next_trick
             )
 
             self.trick_timer.start(2000)
@@ -946,7 +986,7 @@ class PlayPage(QWidget):
             return
 
         # =================================================
-        # TEMPORARY GUI TURN MOVEMENT
+        # MOVE TO NEXT PLAYER
         # =================================================
 
         self.current_player = self.next_position(
@@ -956,6 +996,65 @@ class PlayPage(QWidget):
         self.update_active_player()
 
         self.update_game_info()
+
+        self.update_playable_cards()
+
+    # =====================================================
+    # UPDATE PLAYABLE CARDS
+    # =====================================================
+
+    def update_playable_cards(self):
+
+        # Clear highlighting from every player first.
+        for seat in self.player_seats.values():
+
+            seat.clear_playable_cards()
+
+        # Nothing should be highlighted when the game
+        # has finished.
+        if self.game_complete:
+            return
+
+        if self.current_player is None:
+            return
+
+        if self.players is None:
+            return
+
+        # Get the current player's actual hand.
+        player = self.players[
+            self.current_player
+        ]
+
+        # Determine the suit that was led.
+        led_suit = determine_led_suit(
+            self.played_cards
+        )
+
+        playable_cards = []
+
+        # Use the existing backend validation logic
+        # for every card.
+        for card in player.hand.sorted_by_suit():
+
+            if is_valid_play(
+                player.hand,
+                card,
+                led_suit,
+            ):
+
+                playable_cards.append(card)
+
+        # Apply the gold rim only to legal cards.
+        seat = self.player_seats.get(
+            self.current_player
+        )
+
+        if seat is not None:
+
+            seat.set_playable_cards(
+                playable_cards
+            )
 
     # =====================================================
     # SAVE TRICK
@@ -998,33 +1097,39 @@ class PlayPage(QWidget):
         )
 
     # =====================================================
-    # CLEAR TRICK
+    # START NEXT TRICK
     # =====================================================
 
-    def clear_trick_area(self):
+    def start_next_trick(self):
 
         self.trick_timer = None
+
+        # =================================================
+        # THE WINNER OF THE PREVIOUS TRICK LEADS
+        # THE NEXT TRICK
+        # =================================================
+
+        if self.trick_winner is None:
+
+            print(
+                "ERROR: No trick winner available."
+            )
+
+            return
+
+        self.current_player = (
+            self.trick_winner
+        )
+
+        self.trick_winner = None
+
+        # =================================================
+        # CLEAR PREVIOUS TRICK
+        # =================================================
 
         self.played_cards = {}
 
         self.trick_number += 1
-
-        # =================================================
-        # TEMPORARY GUI-ONLY LEADER MOVEMENT
-        # =================================================
-        #
-        # We are NOT replacing the team's trick-winner
-        # logic here.
-        #
-        # Until trick resolution is implemented, the GUI
-        # simply continues clockwise.
-        # =================================================
-
-        if self.current_player is not None:
-
-            self.current_player = self.next_position(
-                self.current_player
-            )
 
         self.update_trick_area()
 
@@ -1032,8 +1137,10 @@ class PlayPage(QWidget):
 
         self.update_game_info()
 
+        self.update_playable_cards()
+
     # =====================================================
-    # TEMPORARY CLOCKWISE MOVEMENT
+    # NEXT POSITION
     # =====================================================
 
     @staticmethod
@@ -1157,6 +1264,43 @@ class PlayPage(QWidget):
         )
 
     # =====================================================
+    # TRUMP SUIT
+    # =====================================================
+
+    def get_trump_suit(self):
+
+        if self.contract is None:
+
+            return None
+
+        denomination = (
+            self.contract.denomination
+        )
+
+        # =================================================
+        # NO TRUMP
+        # =================================================
+
+        if denomination == Denomination.NO_TRUMP:
+
+            return None
+
+        # =================================================
+        # DENOMINATION -> SUIT
+        # =================================================
+
+        denomination_map = {
+            Denomination.CLUBS: Suit.CLUBS,
+            Denomination.DIAMONDS: Suit.DIAMONDS,
+            Denomination.HEARTS: Suit.HEARTS,
+            Denomination.SPADES: Suit.SPADES,
+        }
+
+        return denomination_map.get(
+            denomination
+        )
+
+    # =====================================================
     # TRUMP DISPLAY
     # =====================================================
 
@@ -1182,6 +1326,7 @@ class PlayPage(QWidget):
             "?",
         )
 
+        # self.trump is the centre QLabel.
         if self.trump is not None:
 
             self.trump.setText(
@@ -1284,19 +1429,6 @@ class PlayPage(QWidget):
 
     def player_role(self, position):
 
-        """
-        Determine the bridge role of a player.
-
-        Declarer:
-            The player recorded as contract.declarer.
-
-        Dummy:
-            The partner of the declarer.
-
-        Defenders:
-            The remaining two players.
-        """
-
         if self.declarer is None:
 
             return "Defender"
@@ -1320,10 +1452,6 @@ class PlayPage(QWidget):
     @staticmethod
     def get_partner(position):
 
-        """
-        Return the bridge partner of a position.
-        """
-
         partners = {
             Position.NORTH: Position.SOUTH,
             Position.SOUTH: Position.NORTH,
@@ -1338,10 +1466,6 @@ class PlayPage(QWidget):
     # =====================================================
 
     def get_dummy(self):
-
-        """
-        Dummy is always the declarer's partner.
-        """
 
         if self.declarer is None:
 
@@ -1360,10 +1484,6 @@ class PlayPage(QWidget):
         if self.declarer is None:
 
             return None
-
-        # =================================================
-        # USE EXISTING TEAM LOGIC
-        # =================================================
 
         return determine_opening_leader(
             self.declarer
@@ -1577,6 +1697,8 @@ class PlayPage(QWidget):
             Qt.AlignCenter
         )
 
+        # This is the DISPLAY LABEL only.
+        # The actual backend trump is self.trump_suit.
         self.trump = QLabel(
             "NT"
         )

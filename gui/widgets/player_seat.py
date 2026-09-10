@@ -5,6 +5,7 @@ PlayerSeat is responsible for:
 
 - Displaying the player's cards.
 - Highlighting the player whose turn it currently is.
+- Highlighting cards that are legally playable.
 - Emitting a signal when one of the player's cards is clicked.
 
 PlayPage is responsible for deciding what happens after a card
@@ -48,6 +49,9 @@ class PlayerSeat(QFrame):
         self.cards = []
         self.hand_widget = None
         self.card_count_label = None
+
+        # Cards that should currently have a gold rim.
+        self.playable_cards = set()
 
         # IMPORTANT:
         # The gold border is controlled by the
@@ -181,6 +185,12 @@ class PlayerSeat(QFrame):
                 self.active
             )
 
+            # Restore playable highlighting after
+            # the hand is rebuilt.
+            card_widget.set_playable(
+                card in self.playable_cards
+            )
+
             self.cards.append(
                 card_widget
             )
@@ -190,6 +200,28 @@ class PlayerSeat(QFrame):
         # -------------------------------------------------
 
         self.update_hand_layout()
+
+    # =====================================================
+    # PLAYABLE CARDS
+    # =====================================================
+
+    def set_playable_cards(self, cards):
+
+        self.playable_cards = set(cards)
+
+        for card_widget in self.cards:
+
+            card_widget.set_playable(
+                card_widget.card in self.playable_cards
+            )
+
+    def clear_playable_cards(self):
+
+        self.playable_cards = set()
+
+        for card_widget in self.cards:
+
+            card_widget.set_playable(False)
 
     # =====================================================
     # RESPONSIVE HAND
@@ -433,21 +465,18 @@ class PlayerSeat(QFrame):
         # Enable/disable this player's cards.
         for card_widget in self.cards:
 
-            card_widget.setEnabled(
-                active
-            )
+            card_widget.setEnabled(active)
 
-        # -------------------------------------------------
-        # IMPORTANT:
-        # Update the Qt property used by the stylesheet.
-        # -------------------------------------------------
+            # Only the active player should have
+            # playable-card highlighting.
+            if not active:
+                card_widget.set_playable(False)
 
         self.setProperty(
             "biddingActive",
             active,
         )
 
-        # Force Qt to re-evaluate the stylesheet.
         self.style().unpolish(self)
         self.style().polish(self)
 
@@ -484,11 +513,6 @@ class PlayerSeat(QFrame):
     # =====================================================
 
     def update_style(self):
-
-        # Keep this method for compatibility with existing
-        # code. The actual border is controlled by the
-        # biddingActive Qt property in BiddingPage's
-        # stylesheet.
 
         self.setProperty(
             "biddingActive",
