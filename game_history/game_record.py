@@ -58,6 +58,18 @@ class GameRecord:
         self.doubled = doubled
 
         # =================================================
+        # PERSISTENCE
+        # =================================================
+
+        # HistoryManager sets this callback when the
+        # GameRecord is created or loaded.
+        #
+        # It is used to save the history whenever
+        # something in this game changes.
+
+        self._on_change = None
+
+        # =================================================
         # PLAY HISTORY
         # =================================================
 
@@ -87,12 +99,80 @@ class GameRecord:
         self.result = None
 
     # =====================================================
+    # PERSISTENCE CALLBACK
+    # =====================================================
+
+    def set_change_callback(
+        self,
+        callback,
+    ):
+        """
+        Set the function that should be called
+        whenever this game changes.
+        """
+
+        self._on_change = callback
+
+    def _notify_change(self):
+        """
+        Notify HistoryManager that this game
+        has changed and should be saved.
+        """
+
+        if self._on_change is not None:
+
+            self._on_change()
+
+    # =====================================================
+    # PICKLE SUPPORT
+    # =====================================================
+
+    def __getstate__(self):
+        """
+        Prepare the GameRecord for saving with pickle.
+
+        The callback is not saved because it points back
+        to the HistoryManager. It will be restored by
+        HistoryManager when the record is loaded.
+        """
+
+        state = self.__dict__.copy()
+
+        state["_on_change"] = None
+
+        return state
+
+    def __setstate__(
+        self,
+        state,
+    ):
+        """
+        Restore the GameRecord when loading from pickle.
+
+        HistoryManager will reconnect the change callback
+        after loading.
+        """
+
+        self.__dict__.update(
+            state
+        )
+
+        self._on_change = None
+
+    # =====================================================
     # NOTES
     # =====================================================
 
-    def set_notes(self, notes):
+    def set_notes(
+        self,
+        notes,
+    ):
 
         self.notes = notes
+
+        # Save the updated notes.
+
+        self._notify_change()
 
     # =====================================================
     # PLAY DATA
@@ -128,6 +208,10 @@ class GameRecord:
         self.tricks.append(
             trick
         )
+
+        # Save the updated trick history.
+
+        self._notify_change()
 
     # =====================================================
     # PLAY INFORMATION
@@ -269,6 +353,10 @@ class GameRecord:
         )
 
         self.result = self.result_text
+
+        # Save the calculated score and result.
+
+        self._notify_change()
 
         return self.final_score
 
