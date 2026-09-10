@@ -17,7 +17,7 @@ class HistoryManager:
         self.next_game_id = 1
 
     # =====================================================
-    # ADD COMPLETED GAME
+    # ADD GAME
     # =====================================================
 
     def add_game(
@@ -28,6 +28,8 @@ class HistoryManager:
         declarer=None,
         bidding_history=None,
         notes="",
+        vulnerable=False,
+        doubled=False,
     ):
 
         game = GameRecord(
@@ -38,9 +40,13 @@ class HistoryManager:
             declarer=declarer,
             bidding_history=bidding_history,
             notes=notes,
+            vulnerable=vulnerable,
+            doubled=doubled,
         )
 
-        self.games.append(game)
+        self.games.append(
+            game
+        )
 
         self.next_game_id += 1
 

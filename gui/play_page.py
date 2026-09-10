@@ -4,38 +4,27 @@ Play screen for BridgeTut.
 The GUI uses the existing Contract, declarer, play-validation,
 and trick-resolution logic.
 
-Flow:
-
-    BiddingPage
-        |
-        | existing BiddingSystem
-        v
-    determine_contract()
-        |
-        v
-    Contract
-        |
-        v
-    PlayPage
 
 The same deal created by BiddingPage is used for play.
 
 Backend responsibilities:
-    - Play validation
-    - Led-suit determination
-    - Trick winner determination
-    - Contract/declarer logic
+- Play validation
+- Led-suit determination
+- Trick winner determination
+- Contract/declarer logic
 
 GUI responsibilities:
-    - Display players and cards
-    - Handle card clicks
-    - Display tricks
-    - Move turns
-    - Start the next trick using the backend winner
-    - Save completed tricks to GameRecord
+- Display players and cards
+- Handle card clicks
+- Display tricks
+- Move turns
+- Start the next trick using the backend winner
+- Save completed tricks to GameRecord
+- Display trick scores as the game progresses
+- Display the final game result in a popup
 """
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -44,6 +33,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QFrame,
     QGridLayout,
+    QDialog,
 )
 
 from bidding.bid import Denomination
@@ -64,12 +54,6 @@ from .widgets.card_widget import CardWidget
 
 
 class PlayPage(QWidget):
-
-    # =====================================================
-    # SIGNALS
-    # =====================================================
-
-    results_button_clicked = Signal()
 
     # =====================================================
     # INITIALISE
@@ -142,7 +126,21 @@ class PlayPage(QWidget):
 
         self.game_complete_label = None
 
-        self.results_button = None
+        # =================================================
+        # SCORE DISPLAY
+        # =================================================
+
+        self.declarer_score = None
+
+        self.declarer_needed = None
+
+        self.defence_score = None
+
+        self.defence_needed = None
+
+        # =================================================
+        # SETUP STATE
+        # =================================================
 
         self.setup_complete = False
 
@@ -224,6 +222,18 @@ class PlayPage(QWidget):
             self.trick_winner = None
 
             # =================================================
+            # RESET SCORE DISPLAY
+            # =================================================
+
+            self.declarer_score = None
+
+            self.declarer_needed = None
+
+            self.defence_score = None
+
+            self.defence_needed = None
+
+            # =================================================
             # SET TRUMP
             # =================================================
 
@@ -236,10 +246,6 @@ class PlayPage(QWidget):
             if self.game_complete_label is not None:
 
                 self.game_complete_label.hide()
-
-            if self.results_button is not None:
-
-                self.results_button.setEnabled(False)
 
             # =================================================
             # GET OPENING LEADER
@@ -291,10 +297,6 @@ class PlayPage(QWidget):
             if self.game_complete_label is not None:
 
                 self.game_complete_label.hide()
-
-            if self.results_button is not None:
-
-                self.results_button.setEnabled(False)
 
             self.create_game_record()
 
@@ -351,6 +353,8 @@ class PlayPage(QWidget):
                 bidding_history=list(
                     self.history
                 ),
+                vulnerable=False,
+                doubled=False,
             )
         )
 
@@ -397,15 +401,23 @@ class PlayPage(QWidget):
 
         self.trump = None
 
+        # =================================================
+        # RESET SCORE DISPLAY REFERENCES
+        # =================================================
+
+        self.declarer_score = None
+
+        self.declarer_needed = None
+
+        self.defence_score = None
+
+        self.defence_needed = None
+
         self.game_loaded = False
 
         if self.game_complete_label is not None:
 
             self.game_complete_label.hide()
-
-        if self.results_button is not None:
-
-            self.results_button.setEnabled(False)
 
     # =====================================================
     # SETUP UI
@@ -691,16 +703,20 @@ class PlayPage(QWidget):
         scores.addWidget(
             self.create_score_box(
                 "DECLARER",
-                "—",
-                "SCORING LATER",
+                "0",
+                "0 tricks",
+                "declarer_score",
+                "declarer_needed",
             )
         )
 
         scores.addWidget(
             self.create_score_box(
                 "DEFENCE",
-                "—",
-                "SCORING LATER",
+                "0",
+                "0 tricks",
+                "defence_score",
+                "defence_needed",
             )
         )
 
@@ -778,32 +794,6 @@ class PlayPage(QWidget):
 
         sidebar_layout.addWidget(
             self.game_complete_label
-        )
-
-        # =================================================
-        # RESULTS
-        # =================================================
-
-        self.results_button = QPushButton(
-            "VIEW RESULTS"
-        )
-
-        self.results_button.setObjectName(
-            "resultsButton"
-        )
-
-        self.results_button.setFixedHeight(
-            52
-        )
-
-        self.results_button.clicked.connect(
-            self.results_button_clicked.emit
-        )
-
-        self.results_button.setEnabled(False)
-
-        sidebar_layout.addWidget(
-            self.results_button
         )
 
         main_layout.addWidget(
@@ -933,13 +923,47 @@ class PlayPage(QWidget):
 
             self.save_current_trick()
 
-            # =============================================
+            # =================================================
+            # UPDATE TRICK SCORE
+            # =================================================
+
+            self.update_score_display()
+
+            # =================================================
             # TRICK 13
-            # =============================================
+            # =================================================
 
             if self.trick_number >= 13:
 
                 self.game_complete = True
+
+                # =================================================
+                # CALCULATE FINAL SCORE
+                # =================================================
+
+                if self.game_record is not None:
+
+                    self.game_record.calculate_score()
+
+                    print(
+                        f"Declarer tricks: "
+                        f"{self.game_record.declarer_tricks}"
+                    )
+
+                    print(
+                        f"Defence tricks: "
+                        f"{self.game_record.defence_tricks}"
+                    )
+
+                    print(
+                        f"Result: "
+                        f"{self.game_record.result_text}"
+                    )
+
+                    print(
+                        f"Final score: "
+                        f"{self.game_record.final_score}"
+                    )
 
                 print(
                     "All 13 tricks completed."
@@ -949,23 +973,23 @@ class PlayPage(QWidget):
 
                     self.game_complete_label.show()
 
-                if self.results_button is not None:
-
-                    self.results_button.setEnabled(
-                        True
-                    )
-
                 self.update_active_player()
 
                 self.update_game_info()
 
                 self.update_playable_cards()
 
+                # =================================================
+                # SHOW FINAL GAME RESULT POPUP
+                # =================================================
+
+                self.show_game_complete_popup()
+
                 return
 
-            # =============================================
+            # =================================================
             # KEEP TRICK VISIBLE FOR 2 SECONDS
-            # =============================================
+            # =================================================
 
             self.update_active_player()
 
@@ -998,6 +1022,512 @@ class PlayPage(QWidget):
         self.update_game_info()
 
         self.update_playable_cards()
+
+    # =====================================================
+    # GAME COMPLETE POPUP
+    # =====================================================
+
+    def show_game_complete_popup(self):
+
+        if self.game_record is None:
+            return
+
+        dialog = QDialog(self)
+
+        dialog.setWindowTitle(
+            "Game Complete"
+        )
+
+        dialog.setModal(True)
+
+        dialog.setMinimumWidth(430)
+
+        dialog.setObjectName(
+            "gameCompleteDialog"
+        )
+
+        layout = QVBoxLayout(dialog)
+
+        layout.setContentsMargins(
+            28,
+            24,
+            28,
+            24,
+        )
+
+        layout.setSpacing(12)
+
+        # =================================================
+        # TITLE
+        # =================================================
+
+        title = QLabel(
+            "GAME COMPLETE"
+        )
+
+        title.setObjectName(
+            "resultTitle"
+        )
+
+        title.setAlignment(
+            Qt.AlignCenter
+        )
+
+        layout.addWidget(
+            title
+        )
+
+        subtitle = QLabel(
+            "Final result"
+        )
+
+        subtitle.setObjectName(
+            "resultSubtitle"
+        )
+
+        subtitle.setAlignment(
+            Qt.AlignCenter
+        )
+
+        layout.addWidget(
+            subtitle
+        )
+
+        # =================================================
+        # RESULT DETAILS
+        # =================================================
+
+        details = QFrame()
+
+        details.setObjectName(
+            "resultDetails"
+        )
+
+        details_layout = QVBoxLayout(
+            details
+        )
+
+        details_layout.setContentsMargins(
+            18,
+            16,
+            18,
+            16,
+        )
+
+        details_layout.setSpacing(10)
+
+        # =================================================
+        # CONTRACT
+        # =================================================
+
+        self.add_result_row(
+            details_layout,
+            "CONTRACT",
+            self.contract_text(),
+        )
+
+        # =================================================
+        # TRUMP
+        # =================================================
+
+        self.add_result_row(
+            details_layout,
+            "TRUMP",
+            self.trump_name(),
+        )
+
+        # =================================================
+        # DECLARER
+        # =================================================
+
+        self.add_result_row(
+            details_layout,
+            "DECLARER",
+            self.position_name(
+                self.declarer
+            ),
+        )
+
+        # =================================================
+        # VULNERABILITY
+        # =================================================
+
+        self.add_result_row(
+            details_layout,
+            "VULNERABILITY",
+            self.vulnerability_text(),
+        )
+
+        # =================================================
+        # TRICKS REQUIRED
+        # =================================================
+
+        tricks_required = (
+            self.game_record.tricks_required
+        )
+
+        self.add_result_row(
+            details_layout,
+            "TRICKS REQUIRED",
+            str(
+                tricks_required
+                if tricks_required is not None
+                else "—"
+            ),
+        )
+
+        # =================================================
+        # DECLARER TRICKS
+        # =================================================
+
+        self.add_result_row(
+            details_layout,
+            "DECLARER TRICKS",
+            str(
+                self.game_record.declarer_tricks
+            ),
+        )
+
+        # =================================================
+        # OUTCOME
+        # =================================================
+
+        self.add_result_row(
+            details_layout,
+            "OUTCOME",
+            self.game_record.result_text,
+        )
+
+        layout.addWidget(
+            details
+        )
+
+        # =================================================
+        # FINAL SCORE
+        # =================================================
+
+        score_frame = QFrame()
+
+        score_frame.setObjectName(
+            "finalScoreFrame"
+        )
+
+        score_layout = QVBoxLayout(
+            score_frame
+        )
+
+        score_layout.setContentsMargins(
+            16,
+            14,
+            16,
+            14,
+        )
+
+        score_title = QLabel(
+            "FINAL SCORE"
+        )
+
+        score_title.setObjectName(
+            "finalScoreTitle"
+        )
+
+        score_title.setAlignment(
+            Qt.AlignCenter
+        )
+
+        score_layout.addWidget(
+            score_title
+        )
+
+        final_score = self.game_record.final_score
+
+        if final_score is None:
+
+            ns_text = "—"
+            ew_text = "—"
+
+        else:
+
+            # GameRecord stores the final score
+            # from the North-South perspective.
+
+            ns_score = final_score
+
+            # East-West receives the opposite
+            # score because the two partnerships
+            # are opposing sides.
+
+            ew_score = -final_score
+
+            ns_text = (
+                f"+{ns_score}"
+                if ns_score > 0
+                else str(ns_score)
+            )
+
+            ew_text = (
+                f"+{ew_score}"
+                if ew_score > 0
+                else str(ew_score)
+            )
+
+        # =================================================
+        # NORTH-SOUTH SCORE
+        # =================================================
+
+        ns_score_label = QLabel(
+            f"North / South: {ns_text}"
+        )
+
+        ns_score_label.setObjectName(
+            "finalScore"
+        )
+
+        ns_score_label.setAlignment(
+            Qt.AlignCenter
+        )
+
+        score_layout.addWidget(
+            ns_score_label
+        )
+
+        # =================================================
+        # EAST-WEST SCORE
+        # =================================================
+
+        ew_score_label = QLabel(
+            f"East / West: {ew_text}"
+        )
+
+        ew_score_label.setObjectName(
+            "finalScoreSecondary"
+        )
+
+        ew_score_label.setAlignment(
+            Qt.AlignCenter
+        )
+
+        score_layout.addWidget(
+            ew_score_label
+        )
+
+        layout.addWidget(
+            score_frame
+        )
+
+        # =================================================
+        # CLOSE BUTTON
+        # =================================================
+
+        close_button = QPushButton(
+            "CLOSE"
+        )
+
+        close_button.setObjectName(
+            "resultCloseButton"
+        )
+
+        close_button.setFixedHeight(
+            44
+        )
+
+        close_button.setCursor(
+            Qt.PointingHandCursor
+        )
+
+        close_button.clicked.connect(
+            dialog.accept
+        )
+
+        layout.addWidget(
+            close_button
+        )
+
+        # =================================================
+        # POPUP STYLE
+        # =================================================
+
+        dialog.setStyleSheet(
+            self.get_style()
+            + """
+
+            QDialog#gameCompleteDialog {
+                background-color: #11271d;
+                border: 1px solid #29483b;
+            }
+
+            QLabel#resultTitle {
+                color: #e5c557;
+                font-family: Georgia, serif;
+                font-size: 26px;
+                font-weight: bold;
+                padding-bottom: 2px;
+            }
+
+            QLabel#resultSubtitle {
+                color: #b9c8c1;
+                font-size: 13px;
+                padding-bottom: 8px;
+            }
+
+            QFrame#resultDetails {
+                background-color: #071710;
+                border: 1px solid #29483b;
+                border-radius: 8px;
+            }
+
+            QLabel#resultLabel {
+                color: #b9c8c1;
+                font-size: 11px;
+                font-weight: bold;
+            }
+
+            QLabel#resultValue {
+                color: #f1f4f2;
+                font-size: 13px;
+                font-weight: bold;
+            }
+
+            QFrame#finalScoreFrame {
+                background-color: #071710;
+                border: 1px solid #e5c557;
+                border-radius: 8px;
+            }
+
+            QLabel#finalScoreTitle {
+                color: #b9c8c1;
+                font-size: 11px;
+                font-weight: bold;
+            }
+
+            QLabel#finalScore {
+                color: #e5c557;
+                font-size: 32px;
+                font-weight: bold;
+            }
+
+            QLabel#finalScoreSecondary {
+                color: #f1f4f2;
+                font-size: 22px;
+                font-weight: bold;
+            }
+
+            QPushButton#resultCloseButton {
+                background-color: #51b5ba;
+                color: #071710;
+                border: none;
+                border-radius: 6px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+
+            QPushButton#resultCloseButton:hover {
+                background-color: #68c4c8;
+            }
+
+            """
+        )
+
+        dialog.exec()
+
+    # =====================================================
+    # RESULT ROW
+    # =====================================================
+
+    @staticmethod
+    def add_result_row(
+        layout,
+        label,
+        value,
+    ):
+
+        row = QHBoxLayout()
+
+        left = QLabel(
+            label
+        )
+
+        left.setObjectName(
+            "resultLabel"
+        )
+
+        right = QLabel(
+            value
+        )
+
+        right.setObjectName(
+            "resultValue"
+        )
+
+        right.setAlignment(
+            Qt.AlignRight
+        )
+
+        row.addWidget(
+            left
+        )
+
+        row.addStretch()
+
+        row.addWidget(
+            right
+        )
+
+        layout.addLayout(
+            row
+        )
+
+    # =====================================================
+    # TRUMP NAME
+    # =====================================================
+
+    def trump_name(self):
+
+        if self.contract is None:
+
+            return "—"
+
+        denomination = (
+            self.contract.denomination
+        )
+
+        trump_map = {
+            Denomination.CLUBS: "♣ Clubs",
+            Denomination.DIAMONDS: "♦ Diamonds",
+            Denomination.HEARTS: "♥ Hearts",
+            Denomination.SPADES: "♠ Spades",
+            Denomination.NO_TRUMP: "No Trump",
+        }
+
+        return trump_map.get(
+            denomination,
+            "—",
+        )
+
+    # =====================================================
+    # VULNERABILITY
+    # =====================================================
+
+    def vulnerability_text(self):
+
+        if self.game_record is None:
+
+            return "None"
+
+        vulnerable = getattr(
+            self.game_record,
+            "vulnerable",
+            False,
+        )
+
+        if not vulnerable:
+
+            return "None"
+
+        # The current GameRecord uses a boolean vulnerability
+        # value, so a True value means the declaring side is
+        # vulnerable.
+        return "Vulnerable"
 
     # =====================================================
     # UPDATE PLAYABLE CARDS
@@ -1089,6 +1619,7 @@ class PlayPage(QWidget):
         self.game_record.add_trick(
             trick_number=self.trick_number,
             plays=plays,
+            winner=self.trick_winner,
         )
 
         print(
@@ -1245,6 +1776,111 @@ class PlayPage(QWidget):
         self.update_trump_display()
 
         self.update_game_log()
+
+        self.update_score_display()
+
+    # =====================================================
+    # SCORE DISPLAY
+    # =====================================================
+
+    def update_score_display(self):
+
+        if self.game_record is None:
+            return
+
+        declarer_tricks = (
+            self.game_record.declarer_tricks
+        )
+
+        defence_tricks = (
+            self.game_record.defence_tricks
+        )
+
+        # =================================================
+        # REMAINING TRICKS
+        # =================================================
+
+        tricks_played = (
+            declarer_tricks
+            + defence_tricks
+        )
+
+        remaining_tricks = max(
+            0,
+            13 - tricks_played,
+        )
+
+        # =================================================
+        # CONTRACT REQUIREMENT
+        # =================================================
+
+        if self.contract is not None:
+
+            contract_required = (
+                self.contract.level + 6
+            )
+
+        else:
+
+            contract_required = 0
+
+        # =================================================
+        # DECLARER
+        # =================================================
+
+        declarer_needed = max(
+            0,
+            contract_required - declarer_tricks,
+        )
+
+        # =================================================
+        # DEFENCE
+        # =================================================
+
+        if remaining_tricks > 0:
+
+            defence_needed = max(
+                0,
+                remaining_tricks
+                - declarer_needed
+                + 1,
+            )
+
+        else:
+
+            defence_needed = 0
+
+        # =================================================
+        # UPDATE DECLARER
+        # =================================================
+
+        if self.declarer_score is not None:
+
+            self.declarer_score.setText(
+                str(declarer_tricks)
+            )
+
+        if self.declarer_needed is not None:
+
+            self.declarer_needed.setText(
+                f"{declarer_needed} tricks needed"
+            )
+
+        # =================================================
+        # UPDATE DEFENCE
+        # =================================================
+
+        if self.defence_score is not None:
+
+            self.defence_score.setText(
+                str(defence_tricks)
+            )
+
+        if self.defence_needed is not None:
+
+            self.defence_needed.setText(
+                f"{defence_needed} tricks needed"
+            )
 
     # =====================================================
     # CONTRACT DISPLAY
@@ -1786,6 +2422,8 @@ class PlayPage(QWidget):
         title,
         score,
         needed,
+        score_key=None,
+        needed_key=None,
     ):
 
         box = QFrame()
@@ -1817,6 +2455,26 @@ class PlayPage(QWidget):
         needed_label.setObjectName(
             "needed"
         )
+
+        # =================================================
+        # STORE LABEL REFERENCES
+        # =================================================
+
+        if score_key is not None:
+
+            setattr(
+                self,
+                score_key,
+                score_label,
+            )
+
+        if needed_key is not None:
+
+            setattr(
+                self,
+                needed_key,
+                needed_label,
+            )
 
         layout.addWidget(
             title_label
@@ -1951,24 +2609,6 @@ class PlayPage(QWidget):
             padding: 14px;
             font-size: 14px;
             font-weight: bold;
-        }
-
-        QPushButton#resultsButton {
-            background-color: #51b5ba;
-            color: #071710;
-            border: none;
-            border-radius: 6px;
-            font-size: 15px;
-            font-weight: bold;
-        }
-
-        QPushButton#resultsButton:hover {
-            background-color: #68c4c8;
-        }
-
-        QPushButton#resultsButton:disabled {
-            background-color: #29483b;
-            color: #71847b;
         }
 
         """

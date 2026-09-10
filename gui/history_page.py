@@ -30,6 +30,8 @@ class HistoryPage(QWidget):
 
         self.game_list = None
         self.game_title = None
+        self.game_result = None
+        self.game_score = None
         self.game_details = None
         self.notes_edit = None
         self.tricks_container = None
@@ -155,6 +157,34 @@ class HistoryPage(QWidget):
 
         right_layout.addWidget(
             self.game_title
+        )
+
+        # -------------------------------------------------
+        # GAME RESULT
+        # -------------------------------------------------
+
+        self.game_result = QLabel()
+
+        self.game_result.setObjectName(
+            "gameResult"
+        )
+
+        right_layout.addWidget(
+            self.game_result
+        )
+
+        # -------------------------------------------------
+        # GAME SCORE
+        # -------------------------------------------------
+
+        self.game_score = QLabel()
+
+        self.game_score.setObjectName(
+            "gameScore"
+        )
+
+        right_layout.addWidget(
+            self.game_score
         )
 
         # -------------------------------------------------
@@ -400,6 +430,76 @@ class HistoryPage(QWidget):
             f"Game #{game.game_id}"
         )
 
+        # -------------------------------------------------
+        # GAME WINNER
+        # -------------------------------------------------
+
+        winner_text = (
+            self.get_game_winner(
+                game
+            )
+        )
+
+        self.game_result.setText(
+            f"<b>Winner:</b> {winner_text}"
+        )
+
+        # -------------------------------------------------
+        # FINAL SCORE
+        # -------------------------------------------------
+
+        score = game.final_score
+
+        if score is None:
+
+            # Calculate the score if the game
+            # has already been completed but
+            # the score has not yet been calculated.
+
+            if game.is_complete:
+
+                score = (
+                    game.calculate_score()
+                )
+
+        if score is None:
+
+            score_text = (
+                "<b>Final Score:</b> "
+                "Not available"
+            )
+
+        else:
+
+            ns_score = score
+            ew_score = -score
+
+            ns_text = (
+                f"+{ns_score}"
+                if ns_score > 0
+                else str(ns_score)
+            )
+
+            ew_text = (
+                f"+{ew_score}"
+                if ew_score > 0
+                else str(ew_score)
+            )
+
+            score_text = (
+                "<b>Final Score:</b><br>"
+                f"North / South: {ns_text}<br>"
+                f"East / West: {ew_text}"
+            )
+
+        self.game_score.setText(
+            score_text
+        ) 
+
+        # -------------------------------------------------
+        # GAME DETAILS
+        # -------------------------------------------------
+
         dealer = self.position_name(
             game.dealer
         )
@@ -431,6 +531,52 @@ class HistoryPage(QWidget):
         self.notes_edit.setPlainText(
             game.notes
         )
+
+    # =====================================================
+    # DETERMINE GAME WINNER
+    # =====================================================
+
+    @staticmethod
+    def get_game_winner(
+        game,
+    ):
+
+        # -------------------------------------------------
+        # If the game has not been completed,
+        # there is no winner yet.
+        # -------------------------------------------------
+
+        if not game.is_complete:
+
+            return "Game in progress"
+
+        # -------------------------------------------------
+        # Get the final score.
+        #
+        # Scores are stored from the NS perspective:
+        #
+        # Positive = North/South won
+        # Negative = East/West won
+        # Zero     = Draw
+        # -------------------------------------------------
+
+        score = game.final_score
+
+        if score is None:
+
+            score = (
+                game.calculate_score()
+            )
+
+        if score > 0:
+
+            return "North / South"
+
+        if score < 0:
+
+            return "East / West"
+
+        return "Draw"
 
     # =====================================================
     # DISPLAY TRICKS
@@ -493,6 +639,10 @@ class HistoryPage(QWidget):
             plays = trick.get(
                 "plays",
                 {},
+            )
+
+            winner = trick.get(
+                "winner"
             )
 
             trick_frame = QFrame()
@@ -596,6 +746,27 @@ class HistoryPage(QWidget):
 
             trick_layout.addLayout(
                 cards_layout
+            )
+
+            # ---------------------------------------------
+            # TRICK WINNER
+            # ---------------------------------------------
+
+            winner_text = self.position_name(
+                winner
+            )
+
+            winner_label = QLabel(
+                f"<b>Winner:</b> "
+                f"{winner_text}"
+            )
+
+            winner_label.setObjectName(
+                "trickWinner"
+            )
+
+            trick_layout.addWidget(
+                winner_label
             )
 
             self.tricks_layout.addWidget(
@@ -746,6 +917,14 @@ class HistoryPage(QWidget):
             "No game selected"
         )
 
+        self.game_result.setText(
+            ""
+        )
+
+        self.game_score.setText(
+            ""
+        )
+
         self.game_details.setText(
             "No games have been recorded yet."
         )
@@ -834,6 +1013,20 @@ class HistoryPage(QWidget):
             font-weight: bold;
         }
 
+        QLabel#gameResult {
+            color: #51b5ba;
+            font-size: 16px;
+            font-weight: bold;
+            padding-top: 3px;
+        }
+
+        QLabel#gameScore {
+            color: #e5c557;
+            font-size: 16px;
+            font-weight: bold;
+            padding-bottom: 3px;
+        }
+
         QLabel#gameDetails {
             color: #d1dbd5;
             font-size: 14px;
@@ -886,6 +1079,13 @@ class HistoryPage(QWidget):
             color: #f1f4f2;
             font-size: 14px;
             font-weight: bold;
+        }
+
+        QLabel#trickWinner {
+            color: #51b5ba;
+            font-size: 13px;
+            font-weight: bold;
+            padding-top: 3px;
         }
 
         QLabel#emptyTricks {

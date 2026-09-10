@@ -6,16 +6,9 @@ A GameRecord contains:
 - Game information
 - Bidding information
 - Notes
-- All 13 played tricks
-
-At this stage:
-
-- Trick winners are NOT calculated.
-- Final scoring is NOT calculated.
-- Result is NOT calculated.
-
-The Play page simply records the four cards played
-in each trick.
+- All played tricks
+- Trick winners
+- Scoring information
 """
 
 from datetime import datetime
@@ -32,6 +25,8 @@ class GameRecord:
         declarer=None,
         bidding_history=None,
         notes="",
+        vulnerable=False,
+        doubled=False,
     ):
 
         # =================================================
@@ -58,6 +53,10 @@ class GameRecord:
 
         self.notes = notes
 
+        self.vulnerable = vulnerable
+
+        self.doubled = doubled
+
         # =================================================
         # PLAY HISTORY
         # =================================================
@@ -68,24 +67,20 @@ class GameRecord:
         #
         # {
         #     "trick_number": 1,
-        #     "plays": [
-        #         (Position.NORTH, card),
-        #         (Position.EAST, card),
-        #         (Position.SOUTH, card),
-        #         (Position.WEST, card),
-        #     ]
+        #     "plays": {
+        #         Position.NORTH: card,
+        #         Position.EAST: card,
+        #         Position.SOUTH: card,
+        #         Position.WEST: card,
+        #     },
+        #     "winner": Position.NORTH
         # }
-        #
-        # Trick winners are intentionally not stored yet.
 
         self.tricks = []
 
         # =================================================
-        # FUTURE SCORING
+        # SCORING
         # =================================================
-
-        # These will be populated later when scoring
-        # and trick resolution are implemented.
 
         self.final_score = None
 
@@ -107,8 +102,8 @@ class GameRecord:
         self,
         trick_number,
         plays,
+        winner=None,
     ):
-
         """
         Store one completed trick.
 
@@ -120,19 +115,14 @@ class GameRecord:
         plays : dict
             Dictionary mapping Position -> Card.
 
-        Example:
-
-            {
-                Position.NORTH: card,
-                Position.EAST: card,
-                Position.SOUTH: card,
-                Position.WEST: card,
-            }
+        winner : Position | None
+            Player who won the trick.
         """
 
         trick = {
             "trick_number": trick_number,
             "plays": dict(plays),
+            "winner": winner,
         }
 
         self.tricks.append(
@@ -156,6 +146,131 @@ class GameRecord:
         return (
             self.tricks_played >= 13
         )
+
+    # =====================================================
+    # CONTRACT INFORMATION
+    # =====================================================
+
+    @property
+    def tricks_required(self):
+
+        if self.contract is None:
+
+            return None
+
+        return (
+            self.contract.level
+            + 6
+        )
+
+    # =====================================================
+    # TRICK COUNT
+    # =====================================================
+
+    @property
+    def declarer_tricks(self):
+
+        if self.declarer is None:
+
+            return 0
+
+        partner = self.declarer.partner
+
+        return sum(
+            1
+            for trick in self.tricks
+            if trick.get("winner")
+            in (
+                self.declarer,
+                partner,
+            )
+        )
+
+    @property
+    def defence_tricks(self):
+
+        return (
+            self.tricks_played
+            - self.declarer_tricks
+        )
+
+    # =====================================================
+    # CONTRACT RESULT
+    # =====================================================
+
+    @property
+    def contract_made(self):
+
+        required = self.tricks_required
+
+        if (
+            required is None
+            or not self.is_complete
+        ):
+
+            return None
+
+        return (
+            self.declarer_tricks
+            >= required
+        )
+
+    @property
+    def result_text(self):
+
+        required = self.tricks_required
+
+        if (
+            required is None
+            or not self.is_complete
+        ):
+
+            return "—"
+
+        difference = (
+            self.declarer_tricks
+            - required
+        )
+
+        if difference == 0:
+
+            return "Made exactly"
+
+        if difference > 0:
+
+            return f"Made +{difference}"
+
+        return f"Down {abs(difference)}"
+
+    # =====================================================
+    # SCORE
+    # =====================================================
+
+    def calculate_score(self):
+
+        if not self.is_complete:
+
+            return None
+
+        if self.contract is None:
+
+            return None
+
+        from game_logic.scoring import (
+            calculate_score
+        )
+
+        self.final_score = calculate_score(
+            contract=self.contract,
+            declarer=self.declarer,
+            tricks_made=self.declarer_tricks,
+            vulnerable=self.vulnerable,
+            doubled=self.doubled,
+        )
+
+        self.result = self.result_text
+
+        return self.final_score
 
     # =====================================================
     # DISPLAY HELPERS
