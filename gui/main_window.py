@@ -182,7 +182,6 @@ class MainWindow(QMainWindow):
             "Home",
             "Bidding",
             "Play",
-            "Results",
             "History",
         ]
 
@@ -243,19 +242,6 @@ class MainWindow(QMainWindow):
         )
 
         # =================================================
-        # DEAL
-        # =================================================
-
-        self.deal_page = PlaceholderPage(
-            "Deal",
-            "Deal screen will be connected to the Deck."
-        )
-
-        self.pages.addWidget(
-            self.deal_page
-        )
-
-        # =================================================
         # BIDDING
         # =================================================
 
@@ -277,18 +263,6 @@ class MainWindow(QMainWindow):
             self.play_page
         )
 
-        # =================================================
-        # RESULTS
-        # =================================================
-
-        self.results_page = PlaceholderPage(
-            "Results",
-            "Results screen will be connected to scoring."
-        )
-
-        self.pages.addWidget(
-            self.results_page
-        )
 
         # =================================================
         # HISTORY
@@ -307,15 +281,6 @@ class MainWindow(QMainWindow):
         # -------------------------------------------------
 
         self.page_title = page_title
-
-        # -------------------------------------------------
-        # CONNECT PLAY -> RESULTS
-        # -------------------------------------------------
-
-        self.play_page.results_button_clicked.connect(
-            lambda:
-            self.navigate("Results")
-        )
 
         # -------------------------------------------------
         # START ON HOME
@@ -392,11 +357,9 @@ class MainWindow(QMainWindow):
 
         page_indexes = {
             "Home": 0,
-            "Deal": 1,
-            "Bidding": 2,
-            "Play": 3,
-            "Results": 4,
-            "History": 5,
+            "Bidding": 1,
+            "Play": 2,
+            "History": 3,
         }
 
         if page_name not in page_indexes:

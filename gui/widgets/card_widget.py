@@ -19,6 +19,9 @@ class CardWidget(QPushButton):
         self.selected = False
         self.invalid = False
 
+        # True when this card is legally playable.
+        self.playable = False
+
         self.setFixedSize(42, 68)
 
         self.setCursor(Qt.PointingHandCursor)
@@ -125,10 +128,25 @@ class CardWidget(QPushButton):
         self.update_style()
 
     def mark_invalid(self):
+
         self.invalid = True
         self.selected = False
 
         self.update_style()
+
+    # =====================================================
+    # PLAYABLE
+    # =====================================================
+
+    def set_playable(self, playable):
+
+        self.playable = playable
+
+        self.update_style()
+
+    # =====================================================
+    # STYLE
+    # =====================================================
 
     def update_style(self):
 
@@ -140,10 +158,19 @@ class CardWidget(QPushButton):
             suit_color = "#111111"
 
         if self.invalid:
+
             border = "#c5162e"
-        elif self.selected:
+
+        elif self.playable:
+
             border = "#e5c557"
+
+        elif self.selected:
+
+            border = "#e5c557"
+
         else:
+
             border = "#aaa"
 
         background = "#fffef7"

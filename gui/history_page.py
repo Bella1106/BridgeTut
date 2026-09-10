@@ -30,10 +30,14 @@ class HistoryPage(QWidget):
 
         self.game_list = None
         self.game_title = None
+        self.game_result = None
+        self.game_score = None
         self.game_details = None
         self.notes_edit = None
         self.tricks_container = None
         self.tricks_layout = None
+
+        self.delete_button = None
 
         self.setup_ui()
 
@@ -158,6 +162,34 @@ class HistoryPage(QWidget):
         )
 
         # -------------------------------------------------
+        # GAME RESULT
+        # -------------------------------------------------
+
+        self.game_result = QLabel()
+
+        self.game_result.setObjectName(
+            "gameResult"
+        )
+
+        right_layout.addWidget(
+            self.game_result
+        )
+
+        # -------------------------------------------------
+        # GAME SCORE
+        # -------------------------------------------------
+
+        self.game_score = QLabel()
+
+        self.game_score.setObjectName(
+            "gameScore"
+        )
+
+        right_layout.addWidget(
+            self.game_score
+        )
+
+        # -------------------------------------------------
         # GAME DETAILS
         # -------------------------------------------------
 
@@ -270,8 +302,18 @@ class HistoryPage(QWidget):
         )
 
         # =================================================
-        # SAVE NOTES
+        # NOTE ACTIONS
         # =================================================
+
+        actions_layout = QHBoxLayout()
+
+        actions_layout.setSpacing(
+            10
+        )
+
+        # -------------------------------------------------
+        # SAVE NOTES
+        # -------------------------------------------------
 
         save_button = QPushButton(
             "Save Notes"
@@ -289,8 +331,40 @@ class HistoryPage(QWidget):
             self.save_notes
         )
 
-        right_layout.addWidget(
+        actions_layout.addWidget(
             save_button
+        )
+
+        # -------------------------------------------------
+        # DELETE GAME
+        # -------------------------------------------------
+
+        self.delete_button = QPushButton(
+            "Delete Game"
+        )
+
+        self.delete_button.setObjectName(
+            "deleteButton"
+        )
+
+        self.delete_button.setCursor(
+            Qt.PointingHandCursor
+        )
+
+        self.delete_button.clicked.connect(
+            self.delete_selected_game
+        )
+
+        self.delete_button.setEnabled(
+            False
+        )
+
+        actions_layout.addWidget(
+            self.delete_button
+        )
+
+        right_layout.addLayout(
+            actions_layout
         )
 
         # -------------------------------------------------
@@ -387,6 +461,14 @@ class HistoryPage(QWidget):
             game
         )
 
+        # Enable delete button.
+
+        if self.delete_button is not None:
+
+            self.delete_button.setEnabled(
+                True
+            )
+
     # =====================================================
     # DISPLAY GAME
     # =====================================================
@@ -399,6 +481,76 @@ class HistoryPage(QWidget):
         self.game_title.setText(
             f"Game #{game.game_id}"
         )
+
+        # -------------------------------------------------
+        # GAME WINNER
+        # -------------------------------------------------
+
+        winner_text = (
+            self.get_game_winner(
+                game
+            )
+        )
+
+        self.game_result.setText(
+            f"<b>Winner:</b> {winner_text}"
+        )
+
+        # -------------------------------------------------
+        # FINAL SCORE
+        # -------------------------------------------------
+
+        score = game.final_score
+
+        if score is None:
+
+            # Calculate the score if the game
+            # has already been completed but
+            # the score has not yet been calculated.
+
+            if game.is_complete:
+
+                score = (
+                    game.calculate_score()
+                )
+
+        if score is None:
+
+            score_text = (
+                "<b>Final Score:</b> "
+                "Not available"
+            )
+
+        else:
+
+            ns_score = score
+            ew_score = -score
+
+            ns_text = (
+                f"+{ns_score}"
+                if ns_score > 0
+                else str(ns_score)
+            )
+
+            ew_text = (
+                f"+{ew_score}"
+                if ew_score > 0
+                else str(ew_score)
+            )
+
+            score_text = (
+                "<b>Final Score:</b><br>"
+                f"North / South: {ns_text}<br>"
+                f"East / West: {ew_text}"
+            )
+
+        self.game_score.setText(
+            score_text
+        )
+
+        # -------------------------------------------------
+        # GAME DETAILS
+        # -------------------------------------------------
 
         dealer = self.position_name(
             game.dealer
@@ -431,6 +583,52 @@ class HistoryPage(QWidget):
         self.notes_edit.setPlainText(
             game.notes
         )
+
+    # =====================================================
+    # DETERMINE GAME WINNER
+    # =====================================================
+
+    @staticmethod
+    def get_game_winner(
+        game,
+    ):
+
+        # -------------------------------------------------
+        # If the game has not been completed,
+        # there is no winner yet.
+        # -------------------------------------------------
+
+        if not game.is_complete:
+
+            return "Game in progress"
+
+        # -------------------------------------------------
+        # Get the final score.
+        #
+        # Scores are stored from the NS perspective:
+        #
+        # Positive = North/South won
+        # Negative = East/West won
+        # Zero     = Draw
+        # -------------------------------------------------
+
+        score = game.final_score
+
+        if score is None:
+
+            score = (
+                game.calculate_score()
+            )
+
+        if score > 0:
+
+            return "North / South"
+
+        if score < 0:
+
+            return "East / West"
+
+        return "Draw"
 
     # =====================================================
     # DISPLAY TRICKS
@@ -493,6 +691,10 @@ class HistoryPage(QWidget):
             plays = trick.get(
                 "plays",
                 {},
+            )
+
+            winner = trick.get(
+                "winner"
             )
 
             trick_frame = QFrame()
@@ -596,6 +798,27 @@ class HistoryPage(QWidget):
 
             trick_layout.addLayout(
                 cards_layout
+            )
+
+            # ---------------------------------------------
+            # TRICK WINNER
+            # ---------------------------------------------
+
+            winner_text = self.position_name(
+                winner
+            )
+
+            winner_label = QLabel(
+                f"<b>Winner:</b> "
+                f"{winner_text}"
+            )
+
+            winner_label.setObjectName(
+                "trickWinner"
+            )
+
+            trick_layout.addWidget(
+                winner_label
             )
 
             self.tricks_layout.addWidget(
@@ -735,6 +958,123 @@ class HistoryPage(QWidget):
         message_box.exec()
 
     # =====================================================
+    # DELETE SELECTED GAME
+    # =====================================================
+
+    def delete_selected_game(self):
+
+        if self.selected_game is None:
+
+            return
+
+        game_id = (
+            self.selected_game.game_id
+        )
+
+        # -------------------------------------------------
+        # CONFIRM DELETION
+        # -------------------------------------------------
+
+        message_box = QMessageBox(
+            self
+        )
+
+        message_box.setWindowTitle(
+            "Delete Game"
+        )
+
+        message_box.setText(
+            f"Delete Game #{game_id}?"
+        )
+
+        message_box.setInformativeText(
+            "This game record will be permanently "
+            "removed from history."
+        )
+
+        message_box.setIcon(
+            QMessageBox.Warning
+        )
+
+        message_box.setStandardButtons(
+            QMessageBox.Yes
+            | QMessageBox.No
+        )
+
+        message_box.setDefaultButton(
+            QMessageBox.No
+        )
+
+        message_box.setStyleSheet("""
+
+            QMessageBox {
+                background-color: #11271d;
+            }
+
+            QMessageBox QLabel {
+                color: #f1f4f2;
+                font-size: 15px;
+                padding: 10px;
+            }
+
+            QMessageBox QPushButton {
+                background-color: #51b5ba;
+                color: #071710;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 24px;
+                min-width: 70px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+
+            QMessageBox QPushButton:hover {
+                background-color: #68c4c8;
+            }
+
+            QMessageBox QPushButton:pressed {
+                background-color: #3d9da2;
+            }
+
+        """)
+
+        result = message_box.exec()
+
+        if result != QMessageBox.Yes:
+
+            return
+
+        # -------------------------------------------------
+        # DELETE FROM HISTORY MANAGER
+        # -------------------------------------------------
+
+        self.history_manager.delete_game(
+            game_id
+        )
+
+        # -------------------------------------------------
+        # CLEAR CURRENT SELECTION
+        # -------------------------------------------------
+
+        self.selected_game = None
+
+        # -------------------------------------------------
+        # DISABLE DELETE BUTTON
+        # -------------------------------------------------
+
+        if self.delete_button is not None:
+
+            self.delete_button.setEnabled(
+                False
+            )
+
+        # -------------------------------------------------
+        # REFRESH HISTORY
+        # -------------------------------------------------
+
+        self.refresh_history()
+
+    # =====================================================
     # NO GAMES
     # =====================================================
 
@@ -746,11 +1086,25 @@ class HistoryPage(QWidget):
             "No game selected"
         )
 
+        self.game_result.setText(
+            ""
+        )
+
+        self.game_score.setText(
+            ""
+        )
+
         self.game_details.setText(
             "No games have been recorded yet."
         )
 
         self.notes_edit.clear()
+
+        if self.delete_button is not None:
+
+            self.delete_button.setEnabled(
+                False
+            )
 
         while self.tricks_layout.count():
 
@@ -834,6 +1188,20 @@ class HistoryPage(QWidget):
             font-weight: bold;
         }
 
+        QLabel#gameResult {
+            color: #51b5ba;
+            font-size: 16px;
+            font-weight: bold;
+            padding-top: 3px;
+        }
+
+        QLabel#gameScore {
+            color: #e5c557;
+            font-size: 16px;
+            font-weight: bold;
+            padding-bottom: 3px;
+        }
+
         QLabel#gameDetails {
             color: #d1dbd5;
             font-size: 14px;
@@ -888,6 +1256,13 @@ class HistoryPage(QWidget):
             font-weight: bold;
         }
 
+        QLabel#trickWinner {
+            color: #51b5ba;
+            font-size: 13px;
+            font-weight: bold;
+            padding-top: 3px;
+        }
+
         QLabel#emptyTricks {
             color: #8fa198;
             font-size: 13px;
@@ -914,6 +1289,32 @@ class HistoryPage(QWidget):
 
         QPushButton#saveButton:hover {
             background-color: #68c4c8;
+        }
+
+        QPushButton#deleteButton {
+            background-color: #11271d;
+            color: #d87373;
+            border: 1px solid #7a4040;
+            border-radius: 6px;
+            padding: 11px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        QPushButton#deleteButton:hover {
+            background-color: #3a2424;
+            color: #f1aaaa;
+            border: 1px solid #a95757;
+        }
+
+        QPushButton#deleteButton:pressed {
+            background-color: #291b1b;
+        }
+
+        QPushButton#deleteButton:disabled {
+            background-color: #11271d;
+            color: #5f6964;
+            border: 1px solid #29483b;
         }
 
         """
