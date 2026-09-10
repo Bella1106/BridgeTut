@@ -404,3 +404,34 @@ class GameRecord:
             f"{level}{short} "
             f"by {declarer_letter}"
         )
+
+        # =====================================================
+    # REMOVE LAST TRICK
+    # =====================================================
+
+    def remove_last_trick(self):
+        """
+        Remove the most recently completed trick.
+
+        Used by the Play phase when a completed trick
+        is undone.
+        """
+
+        if not self.tricks:
+
+            return None
+
+        removed_trick = (
+            self.tricks.pop()
+        )
+
+        # The previously calculated score is no longer valid
+        # because the game state has changed.
+
+        self.final_score = None
+
+        self.result = None
+
+        self._notify_change()
+
+        return removed_trick

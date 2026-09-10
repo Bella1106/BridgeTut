@@ -37,6 +37,8 @@ class HistoryPage(QWidget):
         self.tricks_container = None
         self.tricks_layout = None
 
+        self.delete_button = None
+
         self.setup_ui()
 
         self.refresh_history()
@@ -300,8 +302,18 @@ class HistoryPage(QWidget):
         )
 
         # =================================================
-        # SAVE NOTES
+        # NOTE ACTIONS
         # =================================================
+
+        actions_layout = QHBoxLayout()
+
+        actions_layout.setSpacing(
+            10
+        )
+
+        # -------------------------------------------------
+        # SAVE NOTES
+        # -------------------------------------------------
 
         save_button = QPushButton(
             "Save Notes"
@@ -319,8 +331,40 @@ class HistoryPage(QWidget):
             self.save_notes
         )
 
-        right_layout.addWidget(
+        actions_layout.addWidget(
             save_button
+        )
+
+        # -------------------------------------------------
+        # DELETE GAME
+        # -------------------------------------------------
+
+        self.delete_button = QPushButton(
+            "Delete Game"
+        )
+
+        self.delete_button.setObjectName(
+            "deleteButton"
+        )
+
+        self.delete_button.setCursor(
+            Qt.PointingHandCursor
+        )
+
+        self.delete_button.clicked.connect(
+            self.delete_selected_game
+        )
+
+        self.delete_button.setEnabled(
+            False
+        )
+
+        actions_layout.addWidget(
+            self.delete_button
+        )
+
+        right_layout.addLayout(
+            actions_layout
         )
 
         # -------------------------------------------------
@@ -417,6 +461,14 @@ class HistoryPage(QWidget):
             game
         )
 
+        # Enable delete button.
+
+        if self.delete_button is not None:
+
+            self.delete_button.setEnabled(
+                True
+            )
+
     # =====================================================
     # DISPLAY GAME
     # =====================================================
@@ -494,7 +546,7 @@ class HistoryPage(QWidget):
 
         self.game_score.setText(
             score_text
-        ) 
+        )
 
         # -------------------------------------------------
         # GAME DETAILS
@@ -906,6 +958,123 @@ class HistoryPage(QWidget):
         message_box.exec()
 
     # =====================================================
+    # DELETE SELECTED GAME
+    # =====================================================
+
+    def delete_selected_game(self):
+
+        if self.selected_game is None:
+
+            return
+
+        game_id = (
+            self.selected_game.game_id
+        )
+
+        # -------------------------------------------------
+        # CONFIRM DELETION
+        # -------------------------------------------------
+
+        message_box = QMessageBox(
+            self
+        )
+
+        message_box.setWindowTitle(
+            "Delete Game"
+        )
+
+        message_box.setText(
+            f"Delete Game #{game_id}?"
+        )
+
+        message_box.setInformativeText(
+            "This game record will be permanently "
+            "removed from history."
+        )
+
+        message_box.setIcon(
+            QMessageBox.Warning
+        )
+
+        message_box.setStandardButtons(
+            QMessageBox.Yes
+            | QMessageBox.No
+        )
+
+        message_box.setDefaultButton(
+            QMessageBox.No
+        )
+
+        message_box.setStyleSheet("""
+
+            QMessageBox {
+                background-color: #11271d;
+            }
+
+            QMessageBox QLabel {
+                color: #f1f4f2;
+                font-size: 15px;
+                padding: 10px;
+            }
+
+            QMessageBox QPushButton {
+                background-color: #51b5ba;
+                color: #071710;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 24px;
+                min-width: 70px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+
+            QMessageBox QPushButton:hover {
+                background-color: #68c4c8;
+            }
+
+            QMessageBox QPushButton:pressed {
+                background-color: #3d9da2;
+            }
+
+        """)
+
+        result = message_box.exec()
+
+        if result != QMessageBox.Yes:
+
+            return
+
+        # -------------------------------------------------
+        # DELETE FROM HISTORY MANAGER
+        # -------------------------------------------------
+
+        self.history_manager.delete_game(
+            game_id
+        )
+
+        # -------------------------------------------------
+        # CLEAR CURRENT SELECTION
+        # -------------------------------------------------
+
+        self.selected_game = None
+
+        # -------------------------------------------------
+        # DISABLE DELETE BUTTON
+        # -------------------------------------------------
+
+        if self.delete_button is not None:
+
+            self.delete_button.setEnabled(
+                False
+            )
+
+        # -------------------------------------------------
+        # REFRESH HISTORY
+        # -------------------------------------------------
+
+        self.refresh_history()
+
+    # =====================================================
     # NO GAMES
     # =====================================================
 
@@ -930,6 +1099,12 @@ class HistoryPage(QWidget):
         )
 
         self.notes_edit.clear()
+
+        if self.delete_button is not None:
+
+            self.delete_button.setEnabled(
+                False
+            )
 
         while self.tricks_layout.count():
 
@@ -1114,6 +1289,32 @@ class HistoryPage(QWidget):
 
         QPushButton#saveButton:hover {
             background-color: #68c4c8;
+        }
+
+        QPushButton#deleteButton {
+            background-color: #11271d;
+            color: #d87373;
+            border: 1px solid #7a4040;
+            border-radius: 6px;
+            padding: 11px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        QPushButton#deleteButton:hover {
+            background-color: #3a2424;
+            color: #f1aaaa;
+            border: 1px solid #a95757;
+        }
+
+        QPushButton#deleteButton:pressed {
+            background-color: #291b1b;
+        }
+
+        QPushButton#deleteButton:disabled {
+            background-color: #11271d;
+            color: #5f6964;
+            border: 1px solid #29483b;
         }
 
         """
