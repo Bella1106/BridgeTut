@@ -36,6 +36,7 @@ class PlayerSeat(QFrame):
         active=False,
         dealer=False,
         hand_orientation="horizontal",
+        trump=None,
         parent=None,
     ):
         super().__init__(parent)
@@ -45,6 +46,10 @@ class PlayerSeat(QFrame):
         self.active = active
         self.dealer = dealer
         self.hand_orientation = hand_orientation
+
+        # Trump suit of the contract, or None during bidding / No Trump.
+        # Only affects the order the hand is displayed in.
+        self.trump = trump
 
         self.cards = []
         self.hand_widget = None
@@ -169,7 +174,7 @@ class PlayerSeat(QFrame):
 
         self.cards = []
 
-        for card in self.player.hand.sorted_by_suit():
+        for card in self.player.hand.sorted_by_suit(self.trump):
 
             card_widget = CardWidget(card)
 
