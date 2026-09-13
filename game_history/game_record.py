@@ -13,6 +13,11 @@ A GameRecord contains:
 
 from datetime import datetime
 
+from game_logic.vulnerability import (
+    determine_vulnerability,
+    is_vulnerable,
+)
+
 
 class GameRecord:
 
@@ -25,7 +30,7 @@ class GameRecord:
         declarer=None,
         bidding_history=None,
         notes="",
-        vulnerable=False,
+        board_number=None,
         doubled=False,
     ):
 
@@ -53,7 +58,7 @@ class GameRecord:
 
         self.notes = notes
 
-        self.vulnerable = vulnerable
+        self.board_number = board_number
 
         self.doubled = doubled
 
@@ -327,6 +332,31 @@ class GameRecord:
         return f"Down {abs(difference)}"
 
     # =====================================================
+    # VULNERABILITY
+    # =====================================================
+
+    @property
+    def vulnerability(self):
+
+        "the vulnerability printed on this board"
+
+        # Games saved before boards were numbered have no board
+        # number at all, so they read as not vulnerable.
+        return determine_vulnerability(
+            getattr(self, "board_number", None)
+        )
+
+    @property
+    def declarer_vulnerable(self):
+
+        "whether the declaring partnership is vulnerable"
+
+        return is_vulnerable(
+            self.vulnerability,
+            self.declarer,
+        )
+
+    # =====================================================
     # SCORE
     # =====================================================
 
@@ -348,7 +378,7 @@ class GameRecord:
             contract=self.contract,
             declarer=self.declarer,
             tricks_made=self.declarer_tricks,
-            vulnerable=self.vulnerable,
+            vulnerable=self.declarer_vulnerable,
             doubled=self.doubled,
         )
 

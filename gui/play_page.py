@@ -50,6 +50,7 @@ from game_logic.trick_resolution import (
     determine_trick_winner,
 )
 from game_logic.undo_manager import UndoManager
+from game_logic.vulnerability import determine_vulnerability
 
 from .widgets.player_seat import PlayerSeat
 from .widgets.card_widget import CardWidget
@@ -72,6 +73,8 @@ class PlayPage(QWidget):
         self.players = None
 
         self.dealer = None
+
+        self.board_number = None
 
         self.contract = None
 
@@ -196,6 +199,10 @@ class PlayPage(QWidget):
 
             self.dealer = data.get(
                 "dealer"
+            )
+
+            self.board_number = data.get(
+                "board_number"
             )
 
             self.contract = data.get(
@@ -350,9 +357,33 @@ class PlayPage(QWidget):
 
         self.update_trick_area()
 
+        self.update_seat_trump()
+
         self.update_playable_cards()
 
         self.update_undo_button()
+
+    # =====================================================
+    # HAND DISPLAY ORDER
+    # =====================================================
+
+    def update_seat_trump(self):
+
+        """Keep each seat's hand ordered around the current trump suit.
+
+        The seats are only built once, so a later game with a different
+        contract has to have its trump pushed onto the existing seats.
+        """
+
+        for seat in self.player_seats.values():
+
+            if seat.trump == self.trump_suit:
+
+                continue
+
+            seat.trump = self.trump_suit
+
+            seat.rebuild_hand()
 
     # =====================================================
     # CREATE GAME RECORD
@@ -386,7 +417,7 @@ class PlayPage(QWidget):
                 bidding_history=list(
                     self.history
                 ),
-                vulnerable=False,
+                board_number=self.board_number,
                 doubled=False,
             )
         )
@@ -411,6 +442,8 @@ class PlayPage(QWidget):
         self.players = None
 
         self.dealer = None
+
+        self.board_number = None
 
         self.contract = None
 
@@ -531,6 +564,7 @@ class PlayPage(QWidget):
             ),
             dealer=False,
             hand_orientation="horizontal",
+            trump=self.trump_suit,
         )
 
         north.setFixedHeight(
@@ -548,6 +582,7 @@ class PlayPage(QWidget):
             ),
             dealer=False,
             hand_orientation="vertical",
+            trump=self.trump_suit,
         )
 
         west.setFixedWidth(
@@ -565,6 +600,7 @@ class PlayPage(QWidget):
             ),
             dealer=False,
             hand_orientation="vertical",
+            trump=self.trump_suit,
         )
 
         east.setFixedWidth(
@@ -582,6 +618,7 @@ class PlayPage(QWidget):
             ),
             dealer=False,
             hand_orientation="horizontal",
+            trump=self.trump_suit,
         )
 
         south.setFixedHeight(
@@ -1818,21 +1855,11 @@ class PlayPage(QWidget):
 
     def vulnerability_text(self):
 
-        if self.game_record is None:
-
-            return "None"
-
-        vulnerable = getattr(
-            self.game_record,
-            "vulnerable",
-            False,
+        return str(
+            determine_vulnerability(
+                self.board_number
+            )
         )
-
-        if not vulnerable:
-
-            return "None"
-
-        return "Vulnerable"
 
     # =====================================================
     # UPDATE PLAYABLE CARDS

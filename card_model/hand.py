@@ -14,6 +14,14 @@ from typing import Iterable, List
 
 from .card import Card, Suit
 
+# Display order for a hand, alternating black and red.
+_DISPLAY_SUIT_CYCLE = (
+    Suit.SPADES,
+    Suit.HEARTS,
+    Suit.CLUBS,
+    Suit.DIAMONDS,
+)
+
 
 class Hand:
     """The cards currently held by one player (starts empty, filled by
@@ -44,8 +52,29 @@ class Hand:
     def cards_of(self, suit: Suit) -> List[Card]:
         return [c for c in self._cards if c.suit == suit]
 
-    def sorted_by_suit(self) -> List[Card]:
-        return sorted(self._cards)
+    def sorted_by_suit(self, trump: Suit | None = None) -> List[Card]:
+        """Cards in display order, left to right: trump suit first, then
+        suits alternating black/red, highest rank first within each suit.
+
+        _DISPLAY_SUIT_CYCLE already alternates colours, so rotating it to
+        bring the trump suit to the front keeps that alternation intact.
+        """
+        start = (
+            _DISPLAY_SUIT_CYCLE.index(trump)
+            if trump is not None else 0
+        )
+
+        suit_order = {
+            _DISPLAY_SUIT_CYCLE[
+                (start + offset) % len(_DISPLAY_SUIT_CYCLE)
+            ]: offset
+            for offset in range(len(_DISPLAY_SUIT_CYCLE))
+        }
+
+        return sorted(
+            self._cards,
+            key=lambda c: (suit_order[c.suit], -c.rank),
+        )
 
     def __contains__(self, card: Card) -> bool:
         return card in self._cards

@@ -36,6 +36,8 @@ from card_model.player import Position
 
 from contract.contract import determine_contract
 
+from game_logic.vulnerability import determine_vulnerability
+
 from .widgets.player_seat import PlayerSeat
 
 
@@ -94,6 +96,7 @@ class BiddingPage(QWidget):
     def __init__(
         self,
         dealer=Position.SOUTH,
+        board_number=1,
         parent=None
     ):
         super().__init__(parent)
@@ -103,6 +106,16 @@ class BiddingPage(QWidget):
         # =================================================
 
         self.dealer = dealer
+
+        # =================================================
+        # BOARD
+        # =================================================
+
+        self.board_number = board_number
+
+        self.vulnerability = determine_vulnerability(
+            board_number
+        )
 
         # =================================================
         # DEAL
@@ -306,7 +319,7 @@ class BiddingPage(QWidget):
         self.add_info_row(
             info_layout,
             "VULNERABILITY",
-            "Vulnerable",
+            str(self.vulnerability),
             "vulnerability",
         )
 
@@ -955,6 +968,7 @@ class BiddingPage(QWidget):
             window.play_data = {
                 "players": self.players,
                 "dealer": self.dealer,
+                "board_number": self.board_number,
                 "contract": contract,
                 "declarer": declarer,
                 "history": list(self.bidding_system.history),

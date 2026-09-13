@@ -159,7 +159,7 @@ class HistoryManager:
         declarer=None,
         bidding_history=None,
         notes="",
-        vulnerable=False,
+        board_number=None,
         doubled=False,
     ):
         print(
@@ -174,7 +174,7 @@ class HistoryManager:
             declarer=declarer,
             bidding_history=bidding_history,
             notes=notes,
-            vulnerable=vulnerable,
+            board_number=board_number,
             doubled=doubled,
         )
 

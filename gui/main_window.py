@@ -53,6 +53,14 @@ class MainWindow(QMainWindow):
         self.current_dealer = Position.SOUTH
 
         # -------------------------------------------------
+        # BOARD NUMBER
+        # -------------------------------------------------
+
+        # Vulnerability is fixed by the board number, so the
+        # boards are counted from 1 and never reset.
+        self.board_number = 1
+
+        # -------------------------------------------------
         # DATA PASSED FROM BIDDING -> PLAY
         # -------------------------------------------------
 
@@ -246,7 +254,8 @@ class MainWindow(QMainWindow):
         # =================================================
 
         self.bidding_page = BiddingPage(
-            dealer=self.current_dealer
+            dealer=self.current_dealer,
+            board_number=self.board_number,
         )
 
         self.pages.addWidget(
@@ -311,13 +320,20 @@ class MainWindow(QMainWindow):
         )
 
         # -------------------------------------------------
+        # Advance to the next board
+        # -------------------------------------------------
+
+        self.board_number += 1
+
+        # -------------------------------------------------
         # Replace the existing BiddingPage
         # -------------------------------------------------
 
         old_bidding_page = self.bidding_page
 
         self.bidding_page = BiddingPage(
-            dealer=self.current_dealer
+            dealer=self.current_dealer,
+            board_number=self.board_number,
         )
 
         # Replace the existing bidding page at index 2.
