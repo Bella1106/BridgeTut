@@ -1,5 +1,5 @@
 from bidding.bid import Bid, Denomination
-from bidding.bidding_system import BiddingSystem
+from bidding.bidding_system import BiddingSystem, SpecialCall
 from card_model.player import Position
 import pytest
 
@@ -331,3 +331,181 @@ def test_four_opening_passes_end_auction_as_passed_out():
     assert system.auction_finished is True
     assert system.highest_bid is None
     assert system.consecutive_passes == 4
+
+# Double and Redouble tests
+
+def test_opponent_can_double_current_bid():
+    system = BiddingSystem(Position.SOUTH)
+
+    system.make_bid(
+        Position.SOUTH,
+        Bid(1, Denomination.HEARTS)
+    )
+
+    result = system.make_double(Position.WEST)
+
+    assert result is True
+    assert system.doubling_state == SpecialCall.DOUBLE
+
+
+def test_double_is_recorded_in_history():
+    system = BiddingSystem(Position.SOUTH)
+    bid = Bid(1, Denomination.HEARTS)
+
+    system.make_bid(Position.SOUTH, bid)
+    system.make_double(Position.WEST)
+
+    assert system.history == [
+        (Position.SOUTH, bid),
+        (Position.WEST, SpecialCall.DOUBLE),
+    ]
+
+
+def test_cannot_double_before_a_bid():
+    system = BiddingSystem(Position.SOUTH)
+
+    result = system.make_double(Position.SOUTH)
+
+    assert result is False
+    assert system.doubling_state is None
+    assert system.history == []
+
+
+def test_partnership_cannot_double_own_bid():
+    system = BiddingSystem(Position.SOUTH)
+
+    system.make_bid(
+        Position.SOUTH,
+        Bid(1, Denomination.HEARTS)
+    )
+
+    system.make_pass(Position.WEST)
+
+    result = system.make_double(Position.NORTH)
+
+    assert result is False
+    assert system.doubling_state is None
+
+
+def test_cannot_double_already_doubled_contract():
+    system = BiddingSystem(Position.SOUTH)
+
+    system.make_bid(
+        Position.SOUTH,
+        Bid(1, Denomination.HEARTS)
+    )
+
+    system.make_double(Position.WEST)
+    system.make_pass(Position.NORTH)
+
+    result = system.make_double(Position.EAST)
+
+    assert result is False
+    assert system.doubling_state == SpecialCall.DOUBLE
+
+
+def test_declaring_side_can_redouble():
+    system = BiddingSystem(Position.SOUTH)
+
+    system.make_bid(
+        Position.SOUTH,
+        Bid(1, Denomination.HEARTS)
+    )
+
+    system.make_double(Position.WEST)
+
+    result = system.make_redouble(Position.NORTH)
+
+    assert result is True
+    assert system.doubling_state == SpecialCall.REDOUBLE
+
+
+def test_redouble_is_recorded_in_history():
+    system = BiddingSystem(Position.SOUTH)
+    bid = Bid(1, Denomination.HEARTS)
+
+    system.make_bid(Position.SOUTH, bid)
+    system.make_double(Position.WEST)
+    system.make_redouble(Position.NORTH)
+
+    assert system.history == [
+        (Position.SOUTH, bid),
+        (Position.WEST, SpecialCall.DOUBLE),
+        (Position.NORTH, SpecialCall.REDOUBLE),
+    ]
+
+
+def test_cannot_redouble_without_double():
+    system = BiddingSystem(Position.SOUTH)
+
+    system.make_bid(
+        Position.SOUTH,
+        Bid(1, Denomination.HEARTS)
+    )
+
+    result = system.make_redouble(Position.WEST)
+
+    assert result is False
+    assert system.doubling_state is None
+
+
+def test_opponent_cannot_redouble_own_double():
+    system = BiddingSystem(Position.SOUTH)
+
+    system.make_bid(
+        Position.SOUTH,
+        Bid(1, Denomination.HEARTS)
+    )
+
+    system.make_double(Position.WEST)
+    system.make_pass(Position.NORTH)
+
+    result = system.make_redouble(Position.EAST)
+
+    assert result is False
+    assert system.doubling_state == SpecialCall.DOUBLE
+
+
+def test_new_bid_clears_double_state():
+    system = BiddingSystem(Position.SOUTH)
+
+    system.make_bid(
+        Position.SOUTH,
+        Bid(1, Denomination.HEARTS)
+    )
+
+    system.make_double(Position.WEST)
+
+    new_bid = Bid(1, Denomination.SPADES)
+    result = system.make_bid(Position.NORTH, new_bid)
+
+    assert result is True
+    assert system.highest_bid == new_bid
+    assert system.doubling_state is None
+
+
+def test_double_advances_turn():
+    system = BiddingSystem(Position.SOUTH)
+
+    system.make_bid(
+        Position.SOUTH,
+        Bid(1, Denomination.HEARTS)
+    )
+
+    system.make_double(Position.WEST)
+
+    assert system.current_player == Position.NORTH
+
+
+def test_redouble_advances_turn():
+    system = BiddingSystem(Position.SOUTH)
+
+    system.make_bid(
+        Position.SOUTH,
+        Bid(1, Denomination.HEARTS)
+    )
+
+    system.make_double(Position.WEST)
+    system.make_redouble(Position.NORTH)
+
+    assert system.current_player == Position.EAST

@@ -4,9 +4,17 @@ Manages the bidding phase of a bridge game.
 The bidding system validates calls against the current auction 
 and records accepted calls in the bidding history.
 """
+from enum import Enum
 from bidding.bid import Bid
 from card_model.player import Position
 from card_model.deck import seating_order_from
+
+class SpecialCall(Enum):
+    DOUBLE = "D"
+    REDOUBLE = "R"
+
+    def __str__(self):
+        return self.value
 
 class BiddingSystem:
     "maintains the state and history of an auction"
@@ -19,8 +27,9 @@ class BiddingSystem:
         self.turn_order = seating_order_from(dealer)
         self.current_player = dealer
         
-        self.history: list[tuple[Position, Bid | None]] = []
+        self.history: list[tuple[Position, Bid | SpecialCall | None]] = []
         self.highest_bid: Bid | None = None
+        self.doubling_state: SpecialCall | None = None
 
         self.consecutive_passes = 0
         self.auction_finished = False
@@ -64,6 +73,7 @@ class BiddingSystem:
 
         self.history.append((player, bid))
         self.highest_bid = bid
+        self.doubling_state = None
         self.consecutive_passes = 0
 
         self._advance_turn()
@@ -89,5 +99,84 @@ class BiddingSystem:
             self.auction_finished = True
         else:
             self._advance_turn()
+
+        return True
+
+    def highest_bidder(self) -> Position | None:
+        for player, call in reversed(self.history):
+            if isinstance(call, Bid):
+                return player
+        return None
+
+    def can_double(self, player: Position) -> bool:
+        if not isinstance(player, Position):
+            raise TypeError("Player must be a Position")
+
+        if self.auction_finished:
+            return False
+
+        if not self._is_players_turn(player):
+            return False
+
+        if self.highest_bid is None:
+            return False
+
+        if self.doubling_state is not None:
+            return False
+
+        highest_bidder = self.highest_bidder()
+
+        if highest_bidder is None:
+            return False
+
+        return player.partner != highest_bidder
+
+    def make_double(self, player: Position) -> bool:
+        if not self.can_double(player):
+            return False
+
+        self.history.append((player, SpecialCall.DOUBLE))
+        self.doubling_state = SpecialCall.DOUBLE
+        self.consecutive_passes = 0
+
+        self._advance_turn()
+
+        return True
+
+    def can_redouble(self, player: Position) -> bool:
+        if not isinstance(player, Position):
+            raise TypeError("Player must be a Position")
+
+        if self.auction_finished:
+            return False
+
+        if not self._is_players_turn(player):
+            return False
+
+        if self.highest_bid is None:
+            return False
+
+        if self.doubling_state != SpecialCall.DOUBLE:
+            return False
+
+        highest_bidder = self.highest_bidder()
+
+        if highest_bidder is None:
+            return False
+
+        return (
+            player == highest_bidder
+            or player == highest_bidder.partner
+        )
+
+    def make_redouble(self, player: Position) -> bool:
+        if not self.can_redouble(player):
+            return False
+
+        self.history.append((player, SpecialCall.REDOUBLE))
+        self.doubling_state = SpecialCall.REDOUBLE
+        self.consecutive_passes = 0
+
+        self._advance_turn()
 
         return True
