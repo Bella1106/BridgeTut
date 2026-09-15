@@ -13,6 +13,8 @@ A GameRecord contains:
 
 from datetime import datetime
 
+from bidding.bidding_system import SpecialCall
+
 from game_logic.vulnerability import (
     determine_vulnerability,
     is_vulnerable,
@@ -32,6 +34,7 @@ class GameRecord:
         notes="",
         board_number=None,
         doubled=False,
+        doubling_state=None,
     ):
 
         # =================================================
@@ -60,7 +63,41 @@ class GameRecord:
 
         self.board_number = board_number
 
-        self.doubled = doubled
+        # =================================================
+        # DOUBLING
+        # =================================================
+
+        # New games can store the complete doubling state:
+        #
+        # None                    -> Undoubled
+        # SpecialCall.DOUBLE      -> Doubled
+        # SpecialCall.REDOUBLE    -> Redoubled
+        #
+        # The old "doubled" boolean is retained for
+        # backwards compatibility.
+
+        if doubling_state is None:
+
+            if doubled:
+
+                self.doubling_state = (
+                    SpecialCall.DOUBLE
+                )
+
+            else:
+
+                self.doubling_state = None
+
+        else:
+
+            self.doubling_state = (
+                doubling_state
+            )
+
+        self.doubled = (
+            self.doubling_state
+            == SpecialCall.DOUBLE
+        )
 
         # =================================================
         # PERSISTENCE
@@ -160,6 +197,40 @@ class GameRecord:
 
         self.__dict__.update(
             state
+        )
+
+        # -------------------------------------------------
+        # BACKWARDS COMPATIBILITY
+        # -------------------------------------------------
+
+        # Older saved GameRecords only have "doubled".
+        # Convert that value into the new doubling state.
+
+        if not hasattr(
+            self,
+            "doubling_state",
+        ):
+
+            if getattr(
+                self,
+                "doubled",
+                False,
+            ):
+
+                self.doubling_state = (
+                    SpecialCall.DOUBLE
+                )
+
+            else:
+
+                self.doubling_state = None
+
+        # Keep the old boolean synchronized with the
+        # new doubling state.
+
+        self.doubled = (
+            self.doubling_state
+            == SpecialCall.DOUBLE
         )
 
         self._on_change = None
@@ -327,9 +398,13 @@ class GameRecord:
 
         if difference > 0:
 
-            return f"Made +{difference}"
+            return (
+                f"Made +{difference}"
+            )
 
-        return f"Down {abs(difference)}"
+        return (
+            f"Down {abs(difference)}"
+        )
 
     # =====================================================
     # VULNERABILITY
@@ -342,8 +417,13 @@ class GameRecord:
 
         # Games saved before boards were numbered have no board
         # number at all, so they read as not vulnerable.
+
         return determine_vulnerability(
-            getattr(self, "board_number", None)
+            getattr(
+                self,
+                "board_number",
+                None,
+            )
         )
 
     @property
@@ -351,10 +431,37 @@ class GameRecord:
 
         "whether the declaring partnership is vulnerable"
 
+        if self.declarer is None:
+
+            return False
+
         return is_vulnerable(
             self.vulnerability,
             self.declarer,
         )
+
+    # =====================================================
+    # DOUBLING INFORMATION
+    # =====================================================
+
+    @property
+    def doubling_text(self):
+
+        if (
+            self.doubling_state
+            == SpecialCall.REDOUBLE
+        ):
+
+            return "Redoubled"
+
+        if (
+            self.doubling_state
+            == SpecialCall.DOUBLE
+        ):
+
+            return "Doubled"
+
+        return "Undoubled"
 
     # =====================================================
     # SCORE
@@ -380,6 +487,7 @@ class GameRecord:
             tricks_made=self.declarer_tricks,
             vulnerable=self.declarer_vulnerable,
             doubled=self.doubled,
+            doubling_state=self.doubling_state,
         )
 
         self.result = self.result_text
@@ -435,7 +543,7 @@ class GameRecord:
             f"by {declarer_letter}"
         )
 
-        # =====================================================
+    # =====================================================
     # REMOVE LAST TRICK
     # =====================================================
 

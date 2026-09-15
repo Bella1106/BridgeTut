@@ -10,10 +10,15 @@ The returned score is always from the North-South perspective:
     Positive score -> North-South gain points
     Negative score -> East-West gain points
 
-Redoubles are not supported.
+Supports:
+
+    - Undoubled contracts
+    - Doubled contracts
+    - Redoubled contracts
 """
 
 from bidding.bid import Denomination
+from bidding.bidding_system import SpecialCall
 from card_model.player import Position
 
 
@@ -23,6 +28,7 @@ def calculate_score(
     tricks_made,
     vulnerable,
     doubled=False,
+    doubling_state=None,
 ):
     """
     Calculate the score for a completed contract.
@@ -42,7 +48,15 @@ def calculate_score(
         Whether the declaring partnership is vulnerable.
 
     doubled : bool
-        Whether the contract was doubled.
+        Backwards-compatible flag indicating that the contract
+        was doubled.
+
+    doubling_state : SpecialCall | None
+        Current doubling state:
+
+            None -> Undoubled
+            DOUBLE -> Doubled
+            REDOUBLE -> Redoubled
 
     Returns
     -------
@@ -51,6 +65,7 @@ def calculate_score(
     """
 
     if contract is None:
+
         return 0
 
     level = contract.level
@@ -58,6 +73,25 @@ def calculate_score(
     denomination = contract.denomination
 
     required_tricks = level + 6
+
+    # =====================================================
+    # DOUBLING STATE
+    # =====================================================
+
+    # Older saved games only stored doubled=True.
+    #
+    # Convert that old information into the new doubling
+    # state when no explicit state was supplied.
+
+    if doubling_state is None:
+
+        if doubled:
+
+            doubling_state = SpecialCall.DOUBLE
+
+        else:
+
+            doubling_state = None
 
     # =====================================================
     # DECLARING PARTNERSHIP
@@ -79,7 +113,16 @@ def calculate_score(
             - required_tricks
         )
 
-        if doubled:
+        if doubling_state == SpecialCall.REDOUBLE:
+
+            score = _redoubled_made_score(
+                level=level,
+                denomination=denomination,
+                overtricks=overtricks,
+                vulnerable=vulnerable,
+            )
+
+        elif doubling_state == SpecialCall.DOUBLE:
 
             score = _doubled_made_score(
                 level=level,
@@ -108,7 +151,14 @@ def calculate_score(
             - tricks_made
         )
 
-        if doubled:
+        if doubling_state == SpecialCall.REDOUBLE:
+
+            score = -_redoubled_penalty(
+                undertricks=undertricks,
+                vulnerable=vulnerable,
+            )
+
+        elif doubling_state == SpecialCall.DOUBLE:
 
             score = -_doubled_penalty(
                 undertricks=undertricks,
@@ -163,6 +213,7 @@ def _undoubled_made_score(
     if level == 7:
 
         if vulnerable:
+
             return 2220
 
         return 1520
@@ -269,9 +320,108 @@ def _doubled_made_score(
     if level == 7:
 
         if vulnerable:
+
             score += 1500
 
         else:
+
+            score += 1000
+
+    # =====================================================
+    # SLAM
+    # =====================================================
+
+    elif level == 6:
+
+        bonus = (
+            750
+            if vulnerable
+            else 500
+        )
+
+        score += bonus
+
+    # =====================================================
+    # GAME
+    # =====================================================
+
+    elif _is_game_contract(
+        level,
+        denomination,
+    ):
+
+        bonus = (
+            500
+            if vulnerable
+            else 300
+        )
+
+        score += bonus
+
+    # =====================================================
+    # PART SCORE
+    # =====================================================
+
+    else:
+
+        score += 50
+
+    score += (
+        overtricks
+        * overtrick_value
+    )
+
+    return score
+
+
+# =========================================================
+# REDOUBLED CONTRACT MADE
+# =========================================================
+
+def _redoubled_made_score(
+    level,
+    denomination,
+    overtricks,
+    vulnerable,
+):
+    """
+    Calculate a redoubled contract that was made.
+
+    Includes:
+
+    - four times the trick score
+    - 100 point redouble bonus
+    - game/slam bonus
+    - redoubled overtricks
+    """
+
+    trick_score = _trick_score(
+        level,
+        denomination,
+    )
+
+    overtrick_value = (
+        400
+        if vulnerable
+        else 200
+    )
+
+    score = (
+        trick_score * 4
+    ) + 100
+
+    # =====================================================
+    # GRAND SLAM
+    # =====================================================
+
+    if level == 7:
+
+        if vulnerable:
+
+            score += 1500
+
+        else:
+
             score += 1000
 
     # =====================================================
@@ -358,7 +508,8 @@ def _doubled_penalty(
     Not vulnerable:
         1 undertrick = 100
         2 undertricks = 300
-        3+ undertricks = +200 each
+        3 undertricks = 500
+        4+ undertricks = +300 each
     """
 
     if undertricks <= 0:
@@ -383,11 +534,39 @@ def _doubled_penalty(
 
         return 300
 
+    if undertricks == 3:
+
+        return 500
+
     return (
-        300
+        500
         + (
-            (undertricks - 2)
-            * 200
+            (undertricks - 3)
+            * 300
+        )
+    )
+
+
+# =========================================================
+# REDOUBLED CONTRACT FAILED
+# =========================================================
+
+def _redoubled_penalty(
+    undertricks,
+    vulnerable,
+):
+    """
+    Calculate the penalty for a redoubled failed contract.
+
+    A redoubled penalty is twice the corresponding doubled
+    penalty.
+    """
+
+    return (
+        2
+        * _doubled_penalty(
+            undertricks=undertricks,
+            vulnerable=vulnerable,
         )
     )
 

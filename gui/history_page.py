@@ -13,6 +13,8 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 
+from bidding.bidding_system import SpecialCall
+
 
 class HistoryPage(QWidget):
 
@@ -562,10 +564,36 @@ class HistoryPage(QWidget):
 
         contract = game.contract_text()
 
+        doubling = self.get_doubling_text(
+            game
+        )
+
+        vulnerability = self.vulnerability_text(
+            game
+        )
+
+        # -------------------------------------------------
+        # GAME OUTCOME
+        # -------------------------------------------------
+
+        outcome = getattr(
+            game,
+            "result",
+            None,
+        )
+
+        if outcome is None:
+
+            outcome = game.result_text
+
         details = (
             f"<b>Dealer:</b> {dealer}<br>"
             f"<b>Contract:</b> {contract}<br>"
             f"<b>Declarer:</b> {declarer}<br>"
+            f"<b>Doubling:</b> {doubling}<br>"
+            f"<b>Vulnerability:</b> "
+            f"{vulnerability}<br>"
+            f"<b>Result:</b> {outcome}<br>"
             f"<b>Bids:</b> "
             f"{len(game.bidding_history)}<br>"
             f"<b>Tricks:</b> "
@@ -582,6 +610,78 @@ class HistoryPage(QWidget):
 
         self.notes_edit.setPlainText(
             game.notes
+        )
+
+    # =====================================================
+    # DOUBLING TEXT
+    # =====================================================
+
+    @staticmethod
+    def get_doubling_text(
+        game,
+    ):
+        """
+        Return the doubling state for display.
+
+        Supports the new doubling_state field while
+        remaining compatible with older saved games.
+        """
+
+        doubling_state = getattr(
+            game,
+            "doubling_state",
+            None,
+        )
+
+        if doubling_state == SpecialCall.REDOUBLE:
+
+            return "Redoubled"
+
+        if doubling_state == SpecialCall.DOUBLE:
+
+            return "Doubled"
+
+        # -------------------------------------------------
+        # BACKWARDS COMPATIBILITY
+        # -------------------------------------------------
+
+        if getattr(
+            game,
+            "doubled",
+            False,
+        ):
+
+            return "Doubled"
+
+        return "Undoubled"
+
+    # =====================================================
+    # VULNERABILITY TEXT
+    # =====================================================
+
+    @staticmethod
+    def vulnerability_text(
+        game,
+    ):
+        """
+        Return the vulnerability stored for the game.
+
+        GameRecord determines vulnerability from the
+        board number.
+        """
+
+        vulnerability = getattr(
+            game,
+            "vulnerability",
+            None,
+        )
+
+        if vulnerability is None:
+
+            return "Unknown"
+
+        return str(
+            vulnerability
         )
 
     # =====================================================
