@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
 )
 
 from bidding.bid import Denomination
+from bidding.bidding_system import SpecialCall
 
 from card_model.card import Suit
 from card_model.deck import new_deal
@@ -83,6 +84,14 @@ class PlayPage(QWidget):
         self.history = []
 
         self.game_record = None
+
+        # Exact state of the final auction.
+        #
+        # None                  = Undoubled
+        # SpecialCall.DOUBLE    = Doubled
+        # SpecialCall.REDOUBLE  = Redoubled
+
+        self.doubling_state = None
 
         # =================================================
         # PLAY STATE
@@ -210,6 +219,14 @@ class PlayPage(QWidget):
             )
 
             # =================================================
+            # DOUBLING STATE
+            # =================================================
+
+            self.doubling_state = data.get(
+                "doubling_state"
+            )
+
+            # =================================================
             # DECLARER
             # =================================================
 
@@ -315,6 +332,8 @@ class PlayPage(QWidget):
 
             self.history = []
 
+            self.doubling_state = None
+
             self.played_cards = {}
 
             self.trick_number = 1
@@ -408,6 +427,15 @@ class PlayPage(QWidget):
 
             return
 
+        # =================================================
+        # DOUBLING STATE
+        # =================================================
+
+        doubled = (
+            self.doubling_state
+            == SpecialCall.DOUBLE
+        )
+
         self.game_record = (
             window.history_manager.add_game(
                 dealer=self.dealer,
@@ -418,14 +446,52 @@ class PlayPage(QWidget):
                     self.history
                 ),
                 board_number=self.board_number,
-                doubled=False,
+                doubled=doubled,
             )
         )
+
+        # Store the exact doubling state as additional
+        # game information.
+
+        self.game_record.doubling_state = (
+            self.doubling_state
+        )
+
+        # Keep the backwards-compatible boolean
+        # synchronized with the exact doubling state.
+
+        self.game_record.doubled = (
+            self.doubling_state
+            == SpecialCall.DOUBLE
+        )
+
+        # Notify persistence of the updated
+        # doubling state.
+
+        self.game_record._notify_change()
 
         print(
             f"GameRecord #{self.game_record.game_id} "
             f"created."
         )
+
+        if (
+            self.doubling_state
+            == SpecialCall.DOUBLE
+        ):
+
+            print(
+                "Contract was doubled."
+            )
+
+        elif (
+            self.doubling_state
+            == SpecialCall.REDOUBLE
+        ):
+
+            print(
+                "Contract was redoubled."
+            )
 
     # =====================================================
     # RESET
@@ -450,6 +516,8 @@ class PlayPage(QWidget):
         self.declarer = None
 
         self.history = []
+
+        self.doubling_state = None
 
         self.game_record = None
 
@@ -510,7 +578,9 @@ class PlayPage(QWidget):
             8,
         )
 
-        main_layout.setSpacing(14)
+        main_layout.setSpacing(
+            14
+        )
 
         # =================================================
         # TABLE
@@ -701,14 +771,6 @@ class PlayPage(QWidget):
         # =================================================
         # UNDO BUTTON
         # =================================================
-        #
-        # Row 2 is South's row.
-        # South occupies columns 1-3.
-        # East occupies column 4.
-        #
-        # Therefore column 4 on row 2 places the Undo
-        # icon directly beside South's cards and below
-        # East's player area.
 
         self.undo_button = QPushButton(
             "↶"
@@ -1013,7 +1075,9 @@ class PlayPage(QWidget):
 
             return
 
-        if len(self.played_cards) >= 4:
+        if len(
+            self.played_cards
+        ) >= 4:
 
             return
 
@@ -1047,7 +1111,10 @@ class PlayPage(QWidget):
 
                 for card_widget in seat.cards:
 
-                    if card_widget.card == card:
+                    if (
+                        card_widget.card
+                        == card
+                    ):
 
                         card_widget.mark_invalid()
 
@@ -1100,7 +1167,9 @@ class PlayPage(QWidget):
         # FOUR CARDS = TRICK COMPLETE
         # =================================================
 
-        if len(self.played_cards) == 4:
+        if len(
+            self.played_cards
+        ) == 4:
 
             self.trick_winner = (
                 determine_trick_winner(
@@ -1112,9 +1181,7 @@ class PlayPage(QWidget):
             print(
                 f"Trick {self.trick_number} "
                 f"winner: "
-                f"{self.position_name(
-                    self.trick_winner
-                )}"
+                f"{self.position_name(self.trick_winner)}"
             )
 
             self.save_current_trick()
@@ -1237,21 +1304,15 @@ class PlayPage(QWidget):
     # UNDO LAST PLAY
     # =====================================================
 
-    def undo_last_play(self):
-
-        # -------------------------------------------------
-        # STOP TRICK TIMER
-        # -------------------------------------------------
+    def undo_last_play(
+        self,
+    ):
 
         if self.trick_timer is not None:
 
             self.trick_timer.stop()
 
             self.trick_timer = None
-
-        # -------------------------------------------------
-        # PERFORM UNDO
-        # -------------------------------------------------
 
         result = (
             UndoManager.undo_last_play(
@@ -1269,51 +1330,45 @@ class PlayPage(QWidget):
 
             return
 
-        # -------------------------------------------------
-        # RESTORE PLAY STATE
-        # -------------------------------------------------
-
         self.current_player = (
-            result["current_player"]
+            result[
+                "current_player"
+            ]
         )
 
         self.played_cards = (
-            result["played_cards"]
+            result[
+                "played_cards"
+            ]
         )
 
         self.trick_number = (
-            result["trick_number"]
+            result[
+                "trick_number"
+            ]
         )
 
         self.trick_winner = (
-            result["trick_winner"]
+            result[
+                "trick_winner"
+            ]
         )
 
         self.game_complete = (
-            result["game_complete"]
+            result[
+                "game_complete"
+            ]
         )
-
-        # -------------------------------------------------
-        # RESTORE COMPLETION UI
-        # -------------------------------------------------
 
         if self.game_complete_label is not None:
 
             self.game_complete_label.hide()
-
-        # -------------------------------------------------
-        # REFRESH HANDS
-        # -------------------------------------------------
 
         for seat in (
             self.player_seats.values()
         ):
 
             seat.rebuild_hand()
-
-        # -------------------------------------------------
-        # REFRESH PLAY AREA
-        # -------------------------------------------------
 
         self.update_trick_area()
 
@@ -1333,7 +1388,9 @@ class PlayPage(QWidget):
     # UPDATE UNDO BUTTON
     # =====================================================
 
-    def update_undo_button(self):
+    def update_undo_button(
+        self,
+    ):
 
         if self.undo_button is None:
 
@@ -1359,7 +1416,9 @@ class PlayPage(QWidget):
     # GAME COMPLETE POPUP
     # =====================================================
 
-    def show_game_complete_popup(self):
+    def show_game_complete_popup(
+        self,
+    ):
 
         if self.game_record is None:
 
@@ -1494,6 +1553,16 @@ class PlayPage(QWidget):
         )
 
         # =================================================
+        # DOUBLING
+        # =================================================
+
+        self.add_result_row(
+            details_layout,
+            "DOUBLING",
+            self.doubling_text(),
+        )
+
+        # =================================================
         # VULNERABILITY
         # =================================================
 
@@ -1588,9 +1657,14 @@ class PlayPage(QWidget):
             self.game_record.final_score
         )
 
+        # -------------------------------------------------
+        # SCORE
+        # -------------------------------------------------
+
         if final_score is None:
 
             ns_text = "—"
+
             ew_text = "—"
 
         else:
@@ -1823,6 +1897,30 @@ class PlayPage(QWidget):
         )
 
     # =====================================================
+    # DOUBLING TEXT
+    # =====================================================
+
+    def doubling_text(
+        self,
+    ):
+
+        if (
+            self.doubling_state
+            == SpecialCall.DOUBLE
+        ):
+
+            return "Doubled"
+
+        if (
+            self.doubling_state
+            == SpecialCall.REDOUBLE
+        ):
+
+            return "Redoubled"
+
+        return "Undoubled"
+
+    # =====================================================
     # TRUMP NAME
     # =====================================================
 
@@ -1837,11 +1935,20 @@ class PlayPage(QWidget):
         )
 
         trump_map = {
-            Denomination.CLUBS: "♣ Clubs",
-            Denomination.DIAMONDS: "♦ Diamonds",
-            Denomination.HEARTS: "♥ Hearts",
-            Denomination.SPADES: "♠ Spades",
-            Denomination.NO_TRUMP: "No Trump",
+            Denomination.CLUBS:
+                "♣ Clubs",
+
+            Denomination.DIAMONDS:
+                "♦ Diamonds",
+
+            Denomination.HEARTS:
+                "♥ Hearts",
+
+            Denomination.SPADES:
+                "♠ Spades",
+
+            Denomination.NO_TRUMP:
+                "No Trump",
         }
 
         return trump_map.get(
