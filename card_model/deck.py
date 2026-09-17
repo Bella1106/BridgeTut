@@ -77,3 +77,41 @@ def new_deal(dealer: Position, seed: int | None = None) -> dict[Position, Player
     deck.shuffle()
     deck.deal(players)
     return {p.position: p for p in players}
+
+
+def deal_from(hands: dict[Position, List[Card]]) -> dict[Position, Player]:
+    """Build 4 players from exact, pre-specified hands rather than a
+    shuffle -- for tutorial lessons, where the deal is fixed content
+    rather than random.
+
+    Raises ValueError if the hands don't form a legal deal: every
+    position must be given exactly 13 cards, and the 4 hands together
+    must cover all 52 cards with no duplicates or omissions.
+    """
+    missing = [pos for pos in Position if pos not in hands]
+    if missing:
+        raise ValueError(
+            f"Missing hand(s) for: {[p.value for p in missing]}"
+        )
+
+    for position, cards in hands.items():
+        if len(cards) != 13:
+            raise ValueError(
+                f"{position.value} has {len(cards)} cards, expected 13."
+            )
+
+    all_cards = [card for cards in hands.values() for card in cards]
+
+    if len(set(all_cards)) != 52:
+        raise ValueError(
+            "Hands must cover all 52 cards exactly once "
+            "(found a duplicate or a missing card)."
+        )
+
+    players = {position: Player(position) for position in Position}
+
+    for position, cards in hands.items():
+        for card in cards:
+            players[position].hand.add(card)
+
+    return players
