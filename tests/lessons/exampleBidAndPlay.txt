@@ -1,0 +1,55 @@
+Cards held: spades;hearts;diamonds;clubs
+N: AQJT;AQ53;KJ6;42
+S: K3;K83;A72;AQ865
+E: 942;T2;T943;KJT9
+W: 8765;J974;Q85;73
+D: S
+BOTH VUL
+1NT;P;2C;P;2D;P;6NT.
+8S,TS,9S,3S
+4C,9C,QC,3C
+8C,7C,2C,TC
+4S,KS,7S,JS
+KH,4H,3H,TH
+8H,9H,AH,2H
+QH,2S,6H,7H
+6D,3D,AD,5D
+2D,8D,JD,4D
+Claim
+NOTE: when testing a suit break in NT, try keep the controlling card in case it doesn’t: concede an early trick (when you can afford it) instead of later when you can’t afford it.
+Cards held: spades;hearts;diamonds;clubs
+N: Q73;A7654;64;876
+S: AKJT986;2;AQJ;AJ
+E: 542;-;K532;KT9532
+W: -;KQJT983;T987;Q4
+D: S
+BOTH VUL
+2C;3H;DBL;P;3S;P;4S;P;4NT;P;5D;P;5NT;6C;P;6S.
+KH,4H,2C,2H
+QH,5H,3C,8S
+AS,3H,3S,2S
+6S,8H,7S,4S
+4D,2D,JD,8D
+9S,9H,QS,4S
+AH,3D,JC,TH
+6D,TD,QD,7D
+Claim
+NOTE: (1) W must have long H based on her bid, so don’t play the A on the first trick in case E can trump it; and the losing JC must be discarded on the winning AH which can only be done once S has no H left. (2) dummy is short of entries for the D finesses, so do not rough the H with 6S on the 2nd trick, as keeping it allows entry to dummy by playing 6S up to the 7S winner.
+Cards held: spades;hearts;diamonds;clubs
+N: J64;T543;A73;Q64
+S: AQ8753;AQ;K65;A7
+E: KT9;K98;JT42;K82
+W: 2;J762;Q98;JT953
+D: N
+NONE VUL
+P;P;1S;P;1NT;P;3S;P;4S.
+JC,QC,KC,AC
+5D,8D,AD,4D
+3H,8H,QH,6H
+AS,2S,4S,9S
+3S,3C,JS,KS
+2C,7C,9C,4C
+TC,6C,8C,5S
+QS,5C,6S,TS
+Claim
+NOTE: it is better to take the H finesse than the S finesse. If the H finesse does not work, the S finesse can be tried afterwards. If it wins, 10 tricks are there without any more finessing needed.

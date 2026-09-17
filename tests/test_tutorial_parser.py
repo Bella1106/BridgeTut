@@ -1,4 +1,7 @@
+from pathlib import Path
+
 from bidding.bid import Bid, Denomination
+from bidding.bidding_system import SpecialCall
 from card_model.card import Card, Rank, Suit
 from card_model.player import Position
 from game_logic.tutorial_parser import (
@@ -372,3 +375,98 @@ def test_text_without_lessons_is_rejected():
 
     except ValueError:
         assert True
+
+# =====================================================
+# REAL SPONSOR BID + PLAY FILE
+# =====================================================
+
+def test_parse_real_sponsor_bid_and_play_file():
+    fixture_path = (
+        Path(__file__).parent
+        / "lessons"
+        / "exampleBidAndPlay.txt"
+    )
+
+    file_text = fixture_path.read_text(
+        encoding="utf-8"
+    )
+
+    lessons = parse_bid_and_play_lessons(
+        file_text
+    )
+
+    assert len(lessons) == 3
+
+    # ---------------------------------------------
+    # Lesson 1
+    # ---------------------------------------------
+
+    first = lessons[0]
+
+    assert first.dealer == Position.SOUTH
+    assert first.vulnerability == Vulnerability.BOTH
+    assert len(first.auction) == 7
+    assert len(first.raw_play_lines) == 9
+    assert first.ending == "Claim"
+
+    assert first.auction[-1] == (
+        Position.NORTH,
+        Bid(
+            6,
+            Denomination.NO_TRUMP,
+        ),
+    )
+
+    # ---------------------------------------------
+    # Lesson 2
+    # ---------------------------------------------
+
+    second = lessons[1]
+
+    assert second.dealer == Position.SOUTH
+    assert second.vulnerability == Vulnerability.BOTH
+    assert len(second.auction) == 16
+    assert len(second.raw_play_lines) == 8
+    assert second.ending == "Claim"
+
+    # Sonia's real auction contains:
+    # 2C;3H;DBL;P;...
+    assert second.auction[2] == (
+        Position.NORTH,
+        SpecialCall.DOUBLE,
+    )
+
+    assert second.auction[-1] == (
+        Position.EAST,
+        Bid(
+            6,
+            Denomination.SPADES,
+        ),
+    )
+
+    # ---------------------------------------------
+    # Lesson 3
+    # ---------------------------------------------
+
+    third = lessons[2]
+
+    assert third.dealer == Position.NORTH
+    assert third.vulnerability == Vulnerability.NONE
+    assert len(third.auction) == 9
+    assert len(third.raw_play_lines) == 8
+    assert third.ending == "Claim"
+
+    assert third.auction[-1] == (
+        Position.NORTH,
+        Bid(
+            4,
+            Denomination.SPADES,
+        ),
+    )
+
+    # Every real lesson should contain its
+    # teaching note.
+    assert all(
+        lesson.note
+        for lesson in lessons
+    )
