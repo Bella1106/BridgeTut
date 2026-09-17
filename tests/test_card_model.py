@@ -17,7 +17,7 @@ seating order, and correct trick-winning logic (both NT and trump games).
 import pytest
 
 from card_model.card import Card, Rank, Suit
-from card_model.deck import Deck, new_deal, seating_order_from
+from card_model.deck import Deck, deal_from, new_deal, seating_order_from
 from card_model.hand import Hand
 from card_model.player import Player, Position
 
@@ -119,6 +119,52 @@ def test_deal_order_depends_on_dealer_not_just_seed():
 
     assert (sorted(from_south[Position.SOUTH].hand)
             != sorted(from_north[Position.SOUTH].hand))
+
+
+def _fixed_hands():
+    "52 unique cards split into 4 groups of 13, for deal_from tests"
+    cards = Deck(seed=1).cards
+    positions = [Position.NORTH, Position.EAST, Position.SOUTH, Position.WEST]
+    return {
+        position: cards[i * 13:(i + 1) * 13]
+        for i, position in enumerate(positions)
+    }
+
+
+def test_deal_from_gives_each_player_their_exact_hand():
+    hands = _fixed_hands()
+    table = deal_from(hands)
+
+    assert set(table.keys()) == {Position.NORTH, Position.SOUTH,
+                                  Position.EAST, Position.WEST}
+
+    for position, cards in hands.items():
+        assert set(table[position].hand) == set(cards)
+
+
+def test_deal_from_missing_position_raises():
+    hands = _fixed_hands()
+    del hands[Position.WEST]
+
+    with pytest.raises(ValueError):
+        deal_from(hands)
+
+
+def test_deal_from_wrong_card_count_raises():
+    hands = _fixed_hands()
+    hands[Position.NORTH] = hands[Position.NORTH][:12]
+
+    with pytest.raises(ValueError):
+        deal_from(hands)
+
+
+def test_deal_from_duplicate_card_raises():
+    hands = _fixed_hands()
+    # Give West a card North already has, instead of one of West's own.
+    hands[Position.WEST][0] = hands[Position.NORTH][0]
+
+    with pytest.raises(ValueError):
+        deal_from(hands)
 
 
 def test_hand_remove_missing_card_raises():
