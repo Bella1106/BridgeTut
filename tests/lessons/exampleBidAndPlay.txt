@@ -1,6 +1,6 @@
 Cards held: spades;hearts;diamonds;clubs
 N: AQJT;AQ53;KJ6;42
-S: K3;K83;A72;AQ865
+S: K3;K86;A72;AQ865
 E: 942;T2;T943;KJT9
 W: 8765;J974;Q85;73
 D: S
