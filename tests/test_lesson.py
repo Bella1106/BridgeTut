@@ -69,7 +69,21 @@ def test_lesson_missing_a_hand_raises():
             user_seats=frozenset({Position.NORTH, Position.SOUTH}),
         )
 
-def test_lesson_short_script_raises():
+def test_lesson_may_teach_only_part_of_the_deal():
+    "a lesson can stop after the trick(s) it's actually teaching"
+    hands, script = _hands_and_script()
+
+    # Just the first trick.
+    Lesson(
+        dealer=Position.SOUTH,
+        hands=hands,
+        contract=Contract(Bid(4, Denomination.HEARTS), Position.SOUTH),
+        opening_leader=Position.WEST,
+        script=script[:4],
+        user_seats=frozenset({Position.NORTH, Position.SOUTH}),
+    )
+
+def test_lesson_empty_script_raises():
     hands, script = _hands_and_script()
 
     with pytest.raises(ValueError):
@@ -78,7 +92,23 @@ def test_lesson_short_script_raises():
             hands=hands,
             contract=Contract(Bid(4, Denomination.HEARTS), Position.SOUTH),
             opening_leader=Position.WEST,
-            script=script[:-1],
+            script=[],
+            user_seats=frozenset({Position.NORTH, Position.SOUTH}),
+        )
+
+def test_lesson_script_playing_the_same_card_twice_raises():
+    hands, script = _hands_and_script()
+
+    bad_script = list(script[:4])
+    bad_script.append(bad_script[0])
+
+    with pytest.raises(ValueError):
+        Lesson(
+            dealer=Position.SOUTH,
+            hands=hands,
+            contract=Contract(Bid(4, Denomination.HEARTS), Position.SOUTH),
+            opening_leader=Position.WEST,
+            script=bad_script,
             user_seats=frozenset({Position.NORTH, Position.SOUTH}),
         )
 
@@ -134,6 +164,25 @@ def test_playing_all_52_completes_the_lesson():
     assert state.is_complete()
     assert state.current_player is None
     assert state.expected_card is None
+
+def test_a_partial_lesson_completes_after_its_own_script_length():
+    hands, script = _hands_and_script()
+
+    lesson = Lesson(
+        dealer=Position.SOUTH,
+        hands=hands,
+        contract=Contract(Bid(4, Denomination.HEARTS), Position.SOUTH),
+        opening_leader=Position.WEST,
+        script=script[:4],
+        user_seats=frozenset({Position.NORTH, Position.SOUTH}),
+    )
+
+    state = LessonState(lesson)
+
+    for position, card in lesson.script:
+        assert state.attempt_play(position, card) is True
+
+    assert state.is_complete()
 
 def test_no_mistakes_recorded_on_a_perfect_run():
     lesson = _lesson()

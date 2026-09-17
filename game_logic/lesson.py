@@ -48,9 +48,13 @@ class Lesson:
                 f"{[p.value for p in missing]}"
             )
 
-        if len(self.script) != 52:
+        # A lesson need not play the whole deal out -- it might stop
+        # after the trick it's actually teaching -- so the script can
+        # be any length from 1 up to a full 52, not exactly 52.
+        if not (1 <= len(self.script) <= 52):
             raise ValueError(
-                f"Lesson script has {len(self.script)} plays, expected 52."
+                f"Lesson script has {len(self.script)} plays, "
+                f"expected between 1 and 52."
             )
 
         for position in Position:
@@ -63,15 +67,19 @@ class Lesson:
                     f"{len(hand)} unique cards, expected 13."
                 )
 
-            scripted = {
-                card for played_by, card in self.script
-                if played_by == position
-            }
+        scripted_cards = [card for _, card in self.script]
 
-            if scripted != hand:
+        if len(scripted_cards) != len(set(scripted_cards)):
+            raise ValueError(
+                "Lesson script plays the same card more than once."
+            )
+
+        for position, card in self.script:
+
+            if card not in self.hands[position]:
                 raise ValueError(
-                    f"Lesson script does not play exactly "
-                    f"{position.value}'s hand."
+                    f"Lesson script has {position.value} playing "
+                    f"{card!r}, which isn't in their hand."
                 )
 
 @dataclass
