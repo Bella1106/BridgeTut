@@ -13,13 +13,95 @@ advancing the auction.
 
 from dataclasses import dataclass
 
-from bidding.bid import Bid
+from bidding.bid import Bid, Denomination
 from bidding.bidding_system import BiddingSystem, SpecialCall
 from card_model.player import Position
+from card_model.deck import seating_order_from
 
 
 # None represents Pass, consistent with BiddingSystem.
 BiddingCall = Bid | SpecialCall | None
+
+def parse_bidding_call(call_text: str) -> BiddingCall:
+    """Convert Sonia's bidding notation into a bidding call."""
+
+    call_text = call_text.strip().upper().rstrip(".")
+
+    if call_text == "P":
+        return None
+
+    if call_text in {"DBL", "D"}:
+        return SpecialCall.DOUBLE
+
+    if call_text in {"RDBL", "R"}:
+        return SpecialCall.REDOUBLE
+
+    if len(call_text) < 2:
+        raise ValueError(
+            f"Invalid bidding call: {call_text}"
+        )
+
+    try:
+        level = int(call_text[0])
+    except ValueError:
+        raise ValueError(
+            f"Invalid bidding level: {call_text}"
+        )
+
+    denomination_text = call_text[1:]
+
+    denominations = {
+        "C": Denomination.CLUBS,
+        "D": Denomination.DIAMONDS,
+        "H": Denomination.HEARTS,
+        "S": Denomination.SPADES,
+        "NT": Denomination.NO_TRUMP,
+    }
+
+    if denomination_text not in denominations:
+        raise ValueError(
+            f"Invalid denomination: {denomination_text}"
+        )
+
+    return Bid(
+        level,
+        denominations[denomination_text],
+    )
+
+
+def parse_bidding_script(
+    auction_text: str,
+    dealer: Position,
+) -> list[tuple[Position, BiddingCall]]:
+    """Convert a semicolon-separated auction into a guided script."""
+
+    if not isinstance(dealer, Position):
+        raise TypeError("Dealer must be a Position.")
+
+    calls = [
+        call.strip()
+        for call in auction_text.rstrip(".").split(";")
+        if call.strip()
+    ]
+
+    if not calls:
+        raise ValueError("Auction cannot be empty.")
+
+    turn_order = seating_order_from(dealer)
+
+    script = []
+
+    for index, call_text in enumerate(calls):
+        player = turn_order[index % len(turn_order)]
+
+        script.append(
+            (
+                player,
+                parse_bidding_call(call_text),
+            )
+        )
+
+    return script
 
 
 @dataclass(frozen=True)

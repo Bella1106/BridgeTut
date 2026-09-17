@@ -4,6 +4,8 @@ from card_model.player import Position
 from game_logic.guided_bidding import (
     GuidedBiddingLesson,
     GuidedBiddingState,
+    parse_bidding_call,
+    parse_bidding_script
 )
 
 # =====================================================
@@ -291,4 +293,132 @@ def test_guided_bidding_supports_double():
     assert (
         state.bidding_system.doubling_state
         == SpecialCall.DOUBLE
+    )
+
+# =====================================================
+# SONIA AUCTION PARSING
+# =====================================================
+
+def test_parse_pass():
+    assert parse_bidding_call("P") is None
+
+
+def test_parse_contract_bid():
+    assert parse_bidding_call("3S") == Bid(
+        3,
+        Denomination.SPADES,
+    )
+
+
+def test_parse_no_trump_bid():
+    assert parse_bidding_call("4NT") == Bid(
+        4,
+        Denomination.NO_TRUMP,
+    )
+
+
+def test_parse_double():
+    assert (
+        parse_bidding_call("DBL")
+        == SpecialCall.DOUBLE
+    )
+
+
+def test_parse_redouble():
+    assert (
+        parse_bidding_call("RDBL")
+        == SpecialCall.REDOUBLE
+    )
+
+
+def test_parse_script_assigns_players_from_dealer():
+    script = parse_bidding_script(
+        "P;P;1S;P;1NT.",
+        Position.NORTH,
+    )
+
+    assert script == [
+        (Position.NORTH, None),
+        (Position.EAST, None),
+        (
+            Position.SOUTH,
+            Bid(1, Denomination.SPADES),
+        ),
+        (Position.WEST, None),
+        (
+            Position.NORTH,
+            Bid(1, Denomination.NO_TRUMP),
+        ),
+    ]
+
+
+def test_parse_full_sonia_double_auction():
+    script = parse_bidding_script(
+        (
+            "2C;3H;DBL;P;3S;P;4S;P;"
+            "4NT;P;5D;P;5NT;6C;P;6S."
+        ),
+        Position.SOUTH,
+    )
+
+    assert len(script) == 16
+
+    assert script[0] == (
+        Position.SOUTH,
+        Bid(2, Denomination.CLUBS),
+    )
+
+    assert script[1] == (
+        Position.WEST,
+        Bid(3, Denomination.HEARTS),
+    )
+
+    assert script[2] == (
+        Position.NORTH,
+        SpecialCall.DOUBLE,
+    )
+
+    assert script[3] == (
+        Position.EAST,
+        None,
+    )
+
+    assert script[-1] == (
+        Position.EAST,
+        Bid(6, Denomination.SPADES),
+    )
+
+def test_full_sonia_auction_runs_through_guided_bidding():
+    script = parse_bidding_script(
+        (
+            "2C;3H;DBL;P;3S;P;4S;P;"
+            "4NT;P;5D;P;5NT;6C;P;6S."
+        ),
+        Position.SOUTH,
+    )
+
+    lesson = GuidedBiddingLesson(
+        dealer=Position.SOUTH,
+        script=script,
+    )
+
+    state = GuidedBiddingState(lesson)
+
+    while not state.is_complete():
+
+        if state.is_user_turn():
+            assert state.attempt_call(
+                Position.SOUTH,
+                state.expected_call,
+            )
+        else:
+            state.play_computer_calls()
+
+    assert state.is_complete()
+    assert state.calls_made == script
+    assert state.mistake_count == 0
+
+    assert state.bidding_system.highest_bid == Bid(
+        6,
+        Denomination.SPADES,
     )
