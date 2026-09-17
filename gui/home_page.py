@@ -19,11 +19,13 @@ class HomePage(QWidget):
         self,
         new_game_callback=None,
         history_callback=None,
+        lesson_callback=None,
     ):
         super().__init__()
 
         self.new_game_callback = new_game_callback
         self.history_callback = history_callback
+        self.lesson_callback = lesson_callback
 
         self.setup_ui()
 
@@ -234,6 +236,29 @@ class HomePage(QWidget):
             exit_button,
             1,
             1
+        )
+
+        # =================================================
+        # PRACTICE LESSON (MODE 2: PLAY ONLY)
+        # =================================================
+
+        lesson = self.create_home_card(
+            "🎓",
+            "Practice Lesson",
+            "Play a guided hand: you sit North/South, "
+            "the computer plays East/West.",
+        )
+
+        if self.lesson_callback:
+
+            lesson.clicked.connect(
+                self.lesson_callback
+            )
+
+        grid.addWidget(
+            lesson,
+            2,
+            0
         )
 
         table_layout.addWidget(
