@@ -321,3 +321,66 @@ def parse_bid_and_play_lesson(
         ending=ending,
         note=note,
     )
+
+# =====================================================
+# MULTIPLE BID + PLAY LESSONS
+# =====================================================
+
+def parse_bid_and_play_lessons(
+    file_text: str,
+) -> list[TutorialLessonData]:
+    """
+    Parse a file containing multiple consecutive
+    Bid + Play tutorial lessons.
+
+    Each lesson begins with a 'Cards held:' header.
+    """
+
+    if not file_text.strip():
+        raise ValueError(
+            "Tutorial file is empty."
+        )
+
+    lesson_blocks = []
+    current_block = []
+
+    for line in file_text.splitlines():
+
+        stripped_line = line.strip()
+
+        if stripped_line.lower().startswith(
+            "cards held:"
+        ):
+            # Starting a new lesson means the previous
+            # lesson block is complete.
+            if current_block:
+                lesson_blocks.append(
+                    "\n".join(current_block)
+                )
+
+            current_block = [
+                stripped_line
+            ]
+
+        elif current_block:
+            current_block.append(
+                stripped_line
+            )
+
+    # Add the final lesson.
+    if current_block:
+        lesson_blocks.append(
+            "\n".join(current_block)
+        )
+
+    if not lesson_blocks:
+        raise ValueError(
+            "No Bid + Play lessons found."
+        )
+
+    return [
+        parse_bid_and_play_lesson(
+            lesson_text
+        )
+        for lesson_text in lesson_blocks
+    ]

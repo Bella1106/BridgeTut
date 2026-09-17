@@ -8,6 +8,7 @@ from game_logic.tutorial_parser import (
     parse_dealer,
     parse_vulnerability,
     parse_bid_and_play_lesson,
+    parse_bid_and_play_lessons,
 )
 from game_logic.vulnerability import Vulnerability
 
@@ -279,3 +280,95 @@ NOTE: when testing a suit break in NT, try keep the controlling card in case it 
     )
 
     assert "controlling card" in lesson.note
+
+# =====================================================
+# MULTIPLE BID + PLAY LESSONS
+# =====================================================
+
+def test_parse_multiple_lessons():
+    file_text = """
+Cards held: spades;hearts;diamonds;clubs
+N: AQJT;AQ53;KJ6;42
+S: K3;K83;A72;AQ865
+E: 942;T2;T943;KJT9
+W: 8765;J974;Q85;73
+D: S
+BOTH VUL
+1NT;P;2C;P;2D;P;6NT.
+8S,TS,9S,3S
+Claim
+NOTE: First lesson.
+
+Cards held: spades;hearts;diamonds;clubs
+N: J64;T543;A73;Q64
+S: AQ8753;AQ;K65;A7
+E: KT9;K98;JT42;K82
+W: 2;J762;Q98;JT953
+D: N
+NONE VUL
+P;P;1S;P;1NT;P;3S;P;4S.
+JC,QC,KC,AC
+Claim
+NOTE: Second lesson.
+"""
+
+    lessons = parse_bid_and_play_lessons(
+        file_text
+    )
+
+    assert len(lessons) == 2
+
+    assert (
+        lessons[0].dealer
+        == Position.SOUTH
+    )
+
+    assert (
+        lessons[0].vulnerability
+        == Vulnerability.BOTH
+    )
+
+    assert (
+        lessons[1].dealer
+        == Position.NORTH
+    )
+
+    assert (
+        lessons[1].vulnerability
+        == Vulnerability.NONE
+    )
+
+    assert lessons[0].ending == "Claim"
+    assert lessons[1].ending == "Claim"
+
+    assert lessons[0].note == (
+        "First lesson."
+    )
+
+    assert lessons[1].note == (
+        "Second lesson."
+    )
+
+
+def test_empty_tutorial_file_is_rejected():
+    try:
+        parse_bid_and_play_lessons(
+            ""
+        )
+
+        assert False
+
+    except ValueError:
+        assert True
+
+
+def test_text_without_lessons_is_rejected():
+    try:
+        parse_bid_and_play_lessons(
+            "This file contains no lessons."
+        )
+
+        assert False
+
+    except ValueError:
+        assert True
