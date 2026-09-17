@@ -1,4 +1,5 @@
 from pathlib import Path
+import pytest
 
 from bidding.bid import Bid, Denomination
 from bidding.bidding_system import SpecialCall
@@ -123,7 +124,7 @@ def test_hand_with_wrong_number_of_cards_is_rejected():
 
 def test_parse_hand_line():
     position, hand = parse_hand_line(
-        "S: K3;K83;A72;AQ865"
+        "S: K3;K86;A72;AQ865"
     )
 
     assert position == Position.SOUTH
@@ -170,7 +171,7 @@ def test_parse_complete_sonia_lesson():
     lesson_text = """
 Cards held: spades;hearts;diamonds;clubs
 N: AQJT;AQ53;KJ6;42
-S: K3;K83;A72;AQ865
+S: K3;K86;A72;AQ865
 E: 942;T2;T943;KJT9
 W: 8765;J974;Q85;73
 D: S
@@ -292,7 +293,7 @@ def test_parse_multiple_lessons():
     file_text = """
 Cards held: spades;hearts;diamonds;clubs
 N: AQJT;AQ53;KJ6;42
-S: K3;K83;A72;AQ865
+S: K3;K86;A72;AQ865
 E: 942;T2;T943;KJT9
 W: 8765;J974;Q85;73
 D: S
@@ -470,3 +471,27 @@ def test_parse_real_sponsor_bid_and_play_file():
         lesson.note
         for lesson in lessons
     )
+
+#test deliberatly contains incorrect data
+def test_duplicate_and_missing_card_in_deal_is_rejected():
+    lesson_text = """
+Cards held: spades;hearts;diamonds;clubs
+N: AQJT;AQ53;KJ6;42
+S: K3;K83;A72;AQ865
+E: 942;T2;T943;KJT9
+W: 8765;J974;Q85;73
+D: S
+BOTH VUL
+1NT;P;2C;P;2D;P;6NT.
+8S,TS,9S,3S
+Claim
+NOTE: Test lesson.
+"""
+
+    with pytest.raises(
+        ValueError,
+        match="Invalid tutorial deal",
+    ):
+        parse_bid_and_play_lesson(
+            lesson_text
+        )

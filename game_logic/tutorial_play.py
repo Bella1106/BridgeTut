@@ -8,7 +8,7 @@ Converts prescribed Bid + Play tutorial play data into the
 from card_model.card import Card, Rank, Suit
 from card_model.deck import seating_order_from
 from card_model.player import Position
-from contract.contract import determine_contract
+from contract.contract import determine_contract, Contract
 from game_logic.declarer import determine_opening_leader
 from game_logic.guided_bidding import (
     GuidedBiddingLesson,
@@ -71,7 +71,6 @@ def parse_play_card(card_text: str) -> Card:
         RANK_MAP[rank_text],
         SUIT_MAP[suit_text],
     )
-
 
 def parse_trick_line(
     line: str,
@@ -194,8 +193,12 @@ def build_mode_one_lesson(
     play Lesson used by LessonState.
 
     The prescribed auction is replayed through the existing
-    bidding system so the final contract, declarer and opening
-    leader are derived using BridgeTut's normal game logic.
+    bidding system so the final contract bid is validated and
+    derived using BridgeTut's normal bidding logic.
+
+    In guided lessons South is always the declarer. The opening
+    leader is then determined normally as the player immediately
+    to the left of the declarer.
     """
 
     bidding_lesson = GuidedBiddingLesson(
@@ -226,6 +229,15 @@ def build_mode_one_lesson(
             "Bid + Play tutorial must produce a contract."
         )
 
+    # In guided lessons the learner is always
+    # South, and South is always the declarer.
+    # Keep the contract bid produced by the prescribed
+    # auction, but apply the lesson-specific declarer.
+    contract = Contract(
+        bid=contract.bid,
+        declarer=Position.SOUTH,
+    )
+
     opening_leader = determine_opening_leader(
         contract.declarer
     )
@@ -255,3 +267,4 @@ def build_mode_one_lesson(
             Position.SOUTH,
         }),
     )
+

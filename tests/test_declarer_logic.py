@@ -92,3 +92,22 @@ def test_next_player_after_north_is_east():
 def test_next_player_after_east_is_south():
     assert (determine_opening_leader(Position.EAST) == Position.SOUTH)
 
+def test_declarer_ignores_double_calls():
+    system = BiddingSystem(Position.SOUTH)
+
+    system.make_bid(
+        Position.SOUTH,
+        Bid(2, Denomination.CLUBS),
+    )
+    system.make_bid(
+        Position.WEST,
+        Bid(3, Denomination.HEARTS),
+    )
+    system.make_double(Position.NORTH)
+    system.make_pass(Position.EAST)
+    system.make_bid(
+        Position.SOUTH,
+        Bid(3, Denomination.SPADES),
+    )
+
+    assert determine_declarer(system) == Position.SOUTH

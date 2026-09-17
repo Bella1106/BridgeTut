@@ -245,7 +245,25 @@ def test_build_mode_one_lesson_from_real_sponsor_data():
 
     # 9 prescribed tricks before Claim.
     assert len(lesson.script) == 36
+'''
+def test_mode_one_uses_south_as_declarer_and_west_as_opening_leader():
+    fixture_path = (
+        Path(__file__).parent
+        / "lessons"
+        / "exampleBidAndPlay.txt"
+    )
 
+    data = parse_bid_and_play_lessons(
+        fixture_path.read_text()
+    )
+
+    # Game 2 is useful because its auction would not
+    # otherwise derive South as the declarer.
+    lesson = build_mode_one_lesson(data[1])
+
+    assert lesson.contract.declarer == Position.SOUTH
+    assert lesson.opening_leader == Position.WEST
+'''
 
 def test_real_sponsor_lesson_runs_through_lesson_state():
     fixture_path = (
@@ -269,3 +287,35 @@ def test_real_sponsor_lesson_runs_through_lesson_state():
 
     assert state.is_complete()
     assert state.mistake_count == 0
+
+def test_all_real_sponsor_lessons_build_successfully():
+    fixture_path = (
+        Path(__file__).parent
+        / "lessons"
+        / "exampleBidAndPlay.txt"
+    )
+
+    data = parse_bid_and_play_lessons(
+        fixture_path.read_text()
+    )
+
+    assert len(data) == 3
+
+    for tutorial_data in data:
+        lesson = build_mode_one_lesson(
+            tutorial_data
+        )
+
+        assert len(lesson.script) > 0
+
+        state = LessonState(lesson)
+
+        for position, card in lesson.script:
+            assert state.attempt_play(
+                position,
+                card,
+            )
+
+        assert state.is_complete()
+        assert state.mistake_count == 0
+

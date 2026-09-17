@@ -7,8 +7,9 @@ This module converts tutorial lesson data into BridgeTut objects for:
 - vulnerability
 - prescribed auction
 
-The play script, Claim/Concede ending, and lesson note are retained
-but are not yet converted into Alonso's LessonState objects.
+The play lines, Claim/Concede ending, and lesson note are retained.
+The play lines are converted into guided LessonState play data by
+tutorial_play.py.
 """
 
 from dataclasses import dataclass
@@ -17,6 +18,7 @@ from bidding.bid import Bid
 from bidding.bidding_system import SpecialCall
 from card_model.card import Card, Rank, Suit
 from card_model.player import Position
+from card_model.deck import deal_from
 from game_logic.guided_bidding import (
     BiddingCall,
     parse_bidding_script,
@@ -37,7 +39,7 @@ class TutorialLessonData:
     vulnerability: Vulnerability
     auction: list[tuple[Position, BiddingCall]]
 
-    # Play data is retained but not yet converted into LessonState.
+    # Raw play data and tutorial metadata.
     raw_play_lines: list[str]
     ending: str | None
     note: str
@@ -253,6 +255,15 @@ def parse_bid_and_play_lesson(
             "Lesson must contain all four hands."
         )
 
+    # Validate that the four hands form one complete Bridge deck:
+    # 13 cards each, 52 unique cards, with nothing missing.
+    try:
+        deal_from(hands)
+    except ValueError as exc:
+        raise ValueError(
+            f"Invalid tutorial deal: {exc}"
+        ) from exc
+
     # -------------------------------------------------
     # Dealer
     # -------------------------------------------------
@@ -282,10 +293,11 @@ def parse_bid_and_play_lesson(
     # Play data
     # -------------------------------------------------
     #
-    # We deliberately keep the actual plays as raw text
-    # for now. Alonso's Lesson currently expects all
-    # 52 cards to be played, whereas Sonia's lessons
-    # may finish early with Claim or Concede.
+    # Play lines are retained as raw text here.
+    # tutorial_play.py converts them into the
+    # prescribed play script used by LessonState.
+    # Claim/Concede and the lesson note are retained
+    # separately as tutorial metadata.
     # -------------------------------------------------
 
     raw_play_lines = []

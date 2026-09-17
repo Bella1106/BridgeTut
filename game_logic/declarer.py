@@ -8,6 +8,7 @@ The opening leader is the player immediately to the left of the declarer.
 """
 
 from bidding.bidding_system import BiddingSystem
+from bidding.bid import Bid
 from card_model.player import Position
 from card_model.deck import seating_order_from
 
@@ -32,7 +33,7 @@ def determine_declarer(
 
     #find first player from partnership who named denomination of final contract
     for position, bid in bidding_system.history:
-        if bid is None:
+        if not isinstance(bid, Bid):
             continue
 
         if bid.denomination != final_bid.denomination:
