@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QMainWindow,
@@ -21,7 +23,8 @@ from card_model.deck import deal_from
 from card_model.player import Position
 from game_logic.dealer import determine_next_dealer
 from game_logic.lesson import LessonState
-from game_logic.sample_lessons import build_sample_lesson
+from game_logic.tutorial_parser import parse_bid_and_play_lessons
+from game_logic.tutorial_play import build_mode_one_lesson
 
 
 class MainWindow(QMainWindow):
@@ -384,11 +387,27 @@ class MainWindow(QMainWindow):
         # Build the lesson
         # -------------------------------------------------
 
-        # PLACEHOLDER: always the one sample lesson, until real
-        # lessons are authored and there's a way to choose between
-        # them.
+        # PLACEHOLDER: always the first of Sonia's real sponsor
+        # lessons, until there's a way to choose between them.
+        #
+        # Lesson index 1 (of the 3 in the file) currently fails to
+        # build -- a pre-existing bug in build_mode_one_lesson's
+        # declarer handling, not something to work around here.
 
-        lesson = build_sample_lesson()
+        lessons_file = (
+            Path(__file__).resolve().parent.parent
+            / "tests"
+            / "lessons"
+            / "exampleBidAndPlay.txt"
+        )
+
+        tutorial_data = parse_bid_and_play_lessons(
+            lessons_file.read_text()
+        )[0]
+
+        lesson = build_mode_one_lesson(
+            tutorial_data
+        )
 
         # -------------------------------------------------
         # Skip bidding entirely -- the lesson already has its

@@ -1168,26 +1168,25 @@ class PlayPage(QWidget):
         # VALIDATE PLAY
         # =================================================
 
-        if self.lesson_state is not None:
+        # A lesson still has to obey the normal follow-suit rules --
+        # Sonia was clear it's the script *and* the rules, not the
+        # script instead of the rules.
 
-            # A lesson checks the card against its script
-            # instead of the general follow-suit rules.
+        led_suit = determine_led_suit(
+            self.played_cards
+        )
+
+        play_is_valid = is_valid_play(
+            player.hand,
+            card,
+            led_suit,
+        )
+
+        if play_is_valid and self.lesson_state is not None:
 
             play_is_valid = self.lesson_state.attempt_play(
                 self.current_player,
                 card,
-            )
-
-        else:
-
-            led_suit = determine_led_suit(
-                self.played_cards
-            )
-
-            play_is_valid = is_valid_play(
-                player.hand,
-                card,
-                led_suit,
             )
 
         if not play_is_valid:
