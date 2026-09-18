@@ -1,0 +1,72 @@
+Cards held: spades;hearts;diamonds;clubs
+N: KQ52;JT652;AQ42;
+S: AJT984; K3;K;T432
+W: 63;AQ4;T953;Q976
+E: 7;987;J876;AKJ85
+PLAY 4S
+6C,2S,5C,2C
+2D,6D,KD,3D
+3C,7C,5S,8C
+AD,7D,3H,5D
+QD,8D,KH,9D
+2H,7H,4S,4H
+4C,9C,QS,JC
+5H,8H,8S,QH
+TC,QC,KS,K
+Claim
+NOTE: Cater for 4-2 losers in Clubs, as even number missing = oddly distributed and v.v. And ruff 3rd club high because you can afford to, so play safe.
+Cards held: spades;hearts;diamonds;clubs
+N: 7654;A85;9;AK983
+S: AQ2;J7;KT85;QJ76
+W: KT9;K9632;72;T54
+E: J83;QT4;AQJ643;2
+PLAY 3NT
+7D,9D,AD,5D
+QD,KD,2D,4S
+QC,4C,3C,2C
+JC,5C,8C,3S
+TD,2H,TS,JD
+JS,QS,KS,6S
+TS,7S,8S,AS
+8D,3H,5H,3D
+6C,TC,AC,4D
+KC,6D,7C,6H
+9C,9S,4H,2S
+AH,5H,7H,9H
+8H,QH,JH,KH
+NOTE: Continue Ds and concentrate - only JD out, so will win either TD or 8D as 9th trick even tho it's their suit! If continue with clubs, cannot reach that hand twice again for the Diamonds. Also, making the last D is 100%, whereas the S finesse is only 50% probability.
+Cards held: spades;hearts;diamonds;clubs
+N: AK543;QJ4;T73;J5
+S: 876;AKT653;86;A7
+W: JT9;87;Q4;T98642
+E: Q2;9S;AKJ952;KQ3
+PLAY 4H
+QD,3D,KD,6D
+AD,8D,4D,7D
+JD,TH,2C,TD
+AH,7H,4H,2H
+KH,8H,JH,9H
+6S,9S,AS,2S
+KS,QS,7S,TS
+3S,2D,8S,JS
+Claim
+NOTE: Definitely ruff high when you have such very good trumps; and again establish long suits last. NB Defense should actually switch to clubs but don't know if they can know that. 
+Cards held: spades;hearts;diamonds;clubs
+N: QJ3;8543;9863;52
+S: AKT74;76;5;AKQ43
+W: 985;QT9;QJT42;96
+E: 62;AKJ2;AK7;JT87
+PLAY 3S
+QD,3D,7D,5D
+JD,6D,KD,4S
+KC,9C,5C,8C
+3C,5S,JS,TC
+QS,2S,7S,8S
+3S,6S,AS,9S
+QC,2D,3H,JC
+4C,4D,4H,2H
+KS,9H,5H,JH
+TS,TD,8H,KH
+Concede
+NOTE: As you have such good trumps, ruff high even the 1st time you ruff: one opponent could be short too.
+
