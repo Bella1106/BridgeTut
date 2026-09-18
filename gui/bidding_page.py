@@ -18,6 +18,7 @@ The GUI then passes the completed game data to PlayPage.
 The game is NOT saved to HistoryManager here.
 The game is saved by PlayPage.
 """
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QWidget,
@@ -86,6 +87,7 @@ class BiddingPage(QWidget):
         board_number=1,
         guided_bidding_state: GuidedBiddingState | None = None,
         tutorial_lesson_data=None,
+        bbo_game_data=None,
         parent=None,
     ):
         super().__init__(parent)
@@ -93,16 +95,28 @@ class BiddingPage(QWidget):
         # =================================================
         # GUIDED BIDDING / MODE 1
         # =================================================
+
         self.guided_bidding_state = guided_bidding_state
         self.tutorial_lesson_data = tutorial_lesson_data
+
+        # BBO data is supplied when this page is being used
+        # for a BBO tutorial example.
+        self.bbo_game_data = bbo_game_data
 
         # =================================================
         # DEALER
         # =================================================
-        if self.tutorial_lesson_data is not None:
+
+        if self.bbo_game_data is not None:
+            self.dealer = (
+                self.bbo_game_data.dealer
+            )
+
+        elif self.tutorial_lesson_data is not None:
             self.dealer = (
                 self.tutorial_lesson_data.dealer
             )
+
         else:
             self.dealer = dealer
 
@@ -112,10 +126,20 @@ class BiddingPage(QWidget):
 
         self.board_number = board_number
 
-        if self.tutorial_lesson_data is not None:
+        # =================================================
+        # VULNERABILITY
+        # =================================================
+
+        if self.bbo_game_data is not None:
+            self.vulnerability = (
+                self.bbo_game_data.vulnerability
+            )
+
+        elif self.tutorial_lesson_data is not None:
             self.vulnerability = (
                 self.tutorial_lesson_data.vulnerability
             )
+
         else:
             self.vulnerability = determine_vulnerability(
                 board_number
@@ -124,11 +148,22 @@ class BiddingPage(QWidget):
         # =================================================
         # DEAL
         # =================================================
-        if self.tutorial_lesson_data is not None:
+
+        if self.bbo_game_data is not None:
+            # BBO examples use the exact hands from
+            # the parsed BBO file.
+            self.players = deal_from(
+                self.bbo_game_data.hands
+            )
+
+        elif self.tutorial_lesson_data is not None:
+            # Guided tutorials use their fixed hands.
             self.players = deal_from(
                 self.tutorial_lesson_data.hands
             )
+
         else:
+            # Normal games use a new random deal.
             self.players = new_deal(
                 dealer=self.dealer,
             )
@@ -136,6 +171,10 @@ class BiddingPage(QWidget):
         # =================================================
         # BIDDING SYSTEM
         # =================================================
+
+        # BBO examples are NOT guided bidding.
+        # They use the normal BiddingSystem so that the
+        # user performs the auction themselves.
         if self.guided_bidding_state is not None:
             self.bidding_system = (
                 self.guided_bidding_state.bidding_system
@@ -592,8 +631,11 @@ class BiddingPage(QWidget):
                 )
 
                 button.clicked.connect(
-                    lambda checked=False, selected_bid=bid:
-                    self.on_bid_clicked(selected_bid)
+                    lambda checked=False,
+                    selected_bid=bid:
+                    self.on_bid_clicked(
+                        selected_bid
+                    )
                 )
 
                 row.addWidget(
@@ -1263,6 +1305,7 @@ class BiddingPage(QWidget):
     # =====================================================
     # GUIDED BIDDING
     # =====================================================
+
     def advance_guided_bidding(
         self,
     ):
@@ -1299,6 +1342,7 @@ class BiddingPage(QWidget):
         self.guided_auction_finished.emit(
             self.tutorial_lesson_data
         )
+
     # =====================================================
     # BID CLICK
     # =====================================================
@@ -1593,8 +1637,7 @@ class BiddingPage(QWidget):
 
         self.redouble_button.setEnabled(
             user_can_call
-            and 
-            self.bidding_system.can_redouble(
+            and self.bidding_system.can_redouble(
                 current_player
             )
         )
@@ -1886,21 +1929,30 @@ class BiddingPage(QWidget):
                 "players": self.players,
                 "dealer": self.dealer,
                 "board_number": self.board_number,
+
+                # Preserve the actual vulnerability.
+                # For BBO tutorials this comes directly
+                # from the BBO file.
+                "vulnerability": self.vulnerability,
+
                 "contract": contract,
                 "declarer": declarer,
 
                 # Preserve the full auction history,
                 # including Double and Redouble.
-
                 "history": list(
                     self.bidding_system.history
                 ),
 
                 # Preserve the final doubling state.
-
                 "doubling_state": (
                     self.bidding_system.doubling_state
                 ),
+
+                # Preserve the complete BBO data.
+                # This contains the makeable-tricks table
+                # that will later be used for comparison.
+                "bbo_game_data": self.bbo_game_data,
             }
 
         self.update_bidding_ui()

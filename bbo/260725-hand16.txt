@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<body>
+
+
+<div class="component_hand_record">
+
+    <div class="north vulnerable-EW">
+        <h3>
+            North
+                        <abbr title="Not vulnerable" class="has_tooltip">NV</abbr>
+
+        </h3>
+            <ul>
+        <li>
+            <i class="spade">&spades;</i>
+            <ul>
+                <li>10</li><li>8</li><li>2</li>
+            </ul>
+        </li>
+        <li class="red">
+            <i class="heart">&hearts;</i>
+            <ul>
+                <li>Q</li><li>J</li><li>2</li>
+            </ul>
+        </li>
+        <li class="red">
+            <i class="diamond">&diams;</i>
+            <ul>
+                <li>J</li><li>10</li><li>8</li><li>6</li>
+            </ul>
+        </li>
+        <li>
+            <i class="club">&clubs;</i>
+            <ul>
+                <li>Q</li><li>3</li><li>2</li>
+            </ul>
+        </li>
+    </ul>
+
+    </div><!-- .north -->
+
+    <div class="west vulnerable-EW">
+        <h3>
+            West
+                        <abbr title="Vulnerable" class="has_tooltip">V</abbr>
+                    <abbr title="Dealer" class="has_tooltip">D</abbr>
+
+        </h3>
+            <ul>
+        <li>
+            <i class="spade">&spades;</i>
+            <ul>
+                <li>J</li><li>9</li><li>7</li>
+            </ul>
+        </li>
+        <li class="red">
+            <i class="heart">&hearts;</i>
+            <ul>
+                <li>8</li><li>4</li>
+            </ul>
+        </li>
+        <li class="red">
+            <i class="diamond">&diams;</i>
+            <ul>
+                <li>K</li><li>Q</li><li>5</li><li>4</li><li>3</li>
+            </ul>
+        </li>
+        <li>
+            <i class="club">&clubs;</i>
+            <ul>
+                <li>A</li><li>K</li><li>4</li>
+            </ul>
+        </li>
+    </ul>
+
+    </div><!-- .west -->
+
+    <div class="east vulnerable-EW">
+        <h3>
+            East
+                        <abbr title="Vulnerable" class="has_tooltip">V</abbr>
+
+        </h3>
+            <ul>
+        <li>
+            <i class="spade">&spades;</i>
+            <ul>
+                <li>K</li><li>Q</li><li>6</li><li>5</li>
+            </ul>
+        </li>
+        <li class="red">
+            <i class="heart">&hearts;</i>
+            <ul>
+                <li>A</li><li>10</li><li>9</li><li>7</li>
+            </ul>
+        </li>
+        <li class="red">
+            <i class="diamond">&diams;</i>
+            <ul>
+                <li>9</li>
+            </ul>
+        </li>
+        <li>
+            <i class="club">&clubs;</i>
+            <ul>
+                <li>J</li><li>10</li><li>7</li><li>5</li>
+            </ul>
+        </li>
+    </ul>
+
+    </div><!-- .east -->
+
+    <div class="south vulnerable-EW">
+        <h3>
+            South
+                        <abbr title="Not vulnerable" class="has_tooltip">NV</abbr>
+
+        </h3>
+            <ul>
+        <li>
+            <i class="spade">&spades;</i>
+            <ul>
+                <li>A</li><li>4</li><li>3</li>
+            </ul>
+        </li>
+        <li class="red">
+            <i class="heart">&hearts;</i>
+            <ul>
+                <li>K</li><li>6</li><li>5</li><li>3</li>
+            </ul>
+        </li>
+        <li class="red">
+            <i class="diamond">&diams;</i>
+            <ul>
+                <li>A</li><li>7</li><li>2</li>
+            </ul>
+        </li>
+        <li>
+            <i class="club">&clubs;</i>
+            <ul>
+                <li>9</li><li>8</li><li>6</li>
+            </ul>
+        </li>
+    </ul>
+
+    </div><!-- .south -->
+
+    <div class="hcp">
+        <span>HCPs</span>
+        <div class="box">
+            <div class="north">6</div>
+            <div class="west">13</div>
+            <div class="east">10</div>
+            <div class="south">11</div>
+        </div><!-- .box -->
+    </div><!-- .hcp -->
+
+</div><!-- .component_hand_record -->
+            
+    <div class="block">
+        <div class="component_table">
+
+            <table>
+                <thead>
+                <tr>
+                    <th></th>
+                    <th><i class="club">&clubs;</i></th>
+                    <th><i class="diamond">&diams;</i></th>
+                    <th><i class="heart">&hearts;</i></th>
+                    <th><i class="spade">&spades;</i></th>
+                    <th>NT</th>
+                </tr>
+                </thead>
+
+                        <tr>
+                            <td>North</td>
+                            <td class="text_center">-</td>
+                            <td class="text_center">-</td>
+                            <td class="text_center">-</td>
+                            <td class="text_center">-</td>
+                            <td class="text_center">-</td>
+                        </tr>
+                        <tr>
+                            <td>South</td>
+                            <td class="text_center">-</td>
+                            <td class="text_center">-</td>
+                            <td class="text_center">-</td>
+                            <td class="text_center">-</td>
+                            <td class="text_center">-</td>
+                        </tr>
+                        <tr>
+                            <td>East</td>
+                            <td class="text_center">3</td>
+                            <td class="text_center">2</td>
+                            <td class="text_center">2</td>
+                            <td class="text_center">3</td>
+                            <td class="text_center">2</td>
+                        </tr>
+                        <tr>
+                            <td>West</td>
+                            <td class="text_center">3</td>
+                            <td class="text_center">2</td>
+                            <td class="text_center">2</td>
+                            <td class="text_center">3</td>
+                            <td class="text_center">2</td>
+                        </tr>
+
+            </table>
+
+        </div><!-- .component_table -->
+    </div><!-- .block -->
+</body>
+</html>
