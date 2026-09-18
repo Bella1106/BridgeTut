@@ -25,6 +25,7 @@ from game_logic.dealer import determine_next_dealer
 from game_logic.lesson import LessonState
 from game_logic.tutorial_parser import parse_bid_and_play_lessons
 from game_logic.tutorial_play import build_mode_one_lesson
+from game_logic.guided_bidding import GuidedBiddingState, GuidedBiddingLesson
 
 
 class MainWindow(QMainWindow):
@@ -250,8 +251,10 @@ class MainWindow(QMainWindow):
             history_callback=lambda:
             self.navigate("History"),
 
+            # TODO: Replace temporary Mode 1 launcher once the
+            # final lesson-selection GUI is integrated.
             lesson_callback=lambda:
-            self.start_lesson(),
+            self.start_test_mode_one(),
         )
 
         self.pages.addWidget(
@@ -372,6 +375,102 @@ class MainWindow(QMainWindow):
         )
 
     # =====================================================
+    # TUTORIAL LESSON (MODE 1: BID + PLAY)
+    # =====================================================
+
+    def start_bid_and_play_lesson(self, tutorial_data):
+
+        # -------------------------------------------------
+        # Reset PlayPage
+        # -------------------------------------------------
+
+        self.play_page.reset_for_new_game()
+
+        # -------------------------------------------------
+        # Build guided bidding state
+        # -------------------------------------------------
+
+        guided_lesson = GuidedBiddingLesson(
+            dealer=tutorial_data.dealer,
+            script=tutorial_data.auction,
+            user_seat=Position.SOUTH,
+        )
+
+        guided_state = GuidedBiddingState(
+            guided_lesson
+        )
+
+        # -------------------------------------------------
+        # Replace normal BiddingPage with tutorial version
+        # -------------------------------------------------
+
+        old_bidding_page = self.bidding_page
+
+        self.bidding_page = BiddingPage(
+            guided_bidding_state=guided_state,
+            tutorial_lesson_data=tutorial_data,
+        )
+
+        self.bidding_page.guided_auction_finished.connect(
+            self.finish_bid_and_play_lesson
+        )
+
+        self.pages.insertWidget(
+            1,
+            self.bidding_page
+        )
+
+        self.pages.removeWidget(
+            old_bidding_page
+        )
+
+        old_bidding_page.deleteLater()
+
+        self.play_data = None
+
+        self.navigate(
+            "Bidding"
+        )
+
+
+    def finish_bid_and_play_lesson(
+        self,
+        tutorial_data,
+    ):
+
+        # -------------------------------------------------
+        # Build prescribed play lesson
+        # -------------------------------------------------
+
+        lesson = build_mode_one_lesson(
+            tutorial_data
+        )
+
+        # -------------------------------------------------
+        # Hand lesson to existing PlayPage infrastructure
+        # -------------------------------------------------
+
+        self.play_data = {
+            "players": deal_from(lesson.hands),
+            "dealer": lesson.dealer,
+            "board_number": None,
+            "contract": lesson.contract,
+            "declarer": lesson.contract.declarer,
+            "history": list(
+                self.bidding_page.bidding_system.history
+            ),
+            "doubling_state":
+                self.bidding_page.bidding_system.doubling_state,
+            "lesson_state": LessonState(lesson),
+            "lesson_ending": tutorial_data.ending,
+            "lesson_note": tutorial_data.note,
+        }
+
+        self.navigate(
+            "Play"
+        )
+
+    # =====================================================
     # PRACTICE LESSON (MODE 2: PLAY ONLY)
     # =====================================================
 
@@ -389,10 +488,6 @@ class MainWindow(QMainWindow):
 
         # PLACEHOLDER: always the first of Sonia's real sponsor
         # lessons, until there's a way to choose between them.
-        #
-        # Lesson index 1 (of the 3 in the file) currently fails to
-        # build -- a pre-existing bug in build_mode_one_lesson's
-        # declarer handling, not something to work around here.
 
         lessons_file = (
             Path(__file__).resolve().parent.parent
@@ -424,6 +519,8 @@ class MainWindow(QMainWindow):
             "history": [],
             "doubling_state": None,
             "lesson_state": LessonState(lesson),
+            "lesson_ending": tutorial_data.ending,
+            "lesson_note": tutorial_data.note,
         }
 
         self.navigate(
@@ -623,3 +720,22 @@ class MainWindow(QMainWindow):
         }
 
         """
+
+    # TODO: Temporary launcher for testing Mode 1.
+    # Remove once lesson selection is wired into the GUI.
+    def start_test_mode_one(self):
+
+        lessons_file = (
+            Path(__file__).resolve().parent.parent
+            / "tests"
+            / "lessons"
+            / "exampleBidAndPlay.txt"
+        )
+
+        tutorial_data = parse_bid_and_play_lessons(
+            lessons_file.read_text()
+        )[0]
+
+        self.start_bid_and_play_lesson(
+            tutorial_data
+        )
