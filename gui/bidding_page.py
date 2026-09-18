@@ -1495,7 +1495,8 @@ class BiddingPage(QWidget):
 
         self.redouble_button.setEnabled(
             user_can_call
-            and self.bidding_system.can_redouble(
+            and 
+            self.bidding_system.can_redouble(
                 current_player
             )
         )
