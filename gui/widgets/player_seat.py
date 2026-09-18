@@ -37,6 +37,7 @@ class PlayerSeat(QFrame):
         dealer=False,
         hand_orientation="horizontal",
         trump=None,
+        hidden=False,
         parent=None,
     ):
         super().__init__(parent)
@@ -50,6 +51,10 @@ class PlayerSeat(QFrame):
         # Trump suit of the contract, or None during bidding / No Trump.
         # Only affects the order the hand is displayed in.
         self.trump = trump
+
+        # True for a computer-controlled seat in a lesson: the card
+        # count still shows, but the actual cards are not rendered.
+        self.hidden = hidden
 
         self.cards = []
         self.hand_widget = None
@@ -174,31 +179,33 @@ class PlayerSeat(QFrame):
 
         self.cards = []
 
-        for card in self.player.hand.sorted_by_suit(self.trump):
+        if not self.hidden:
 
-            card_widget = CardWidget(card)
+            for card in self.player.hand.sorted_by_suit(self.trump):
 
-            card_widget.card = card
+                card_widget = CardWidget(card)
 
-            card_widget.clicked.connect(
-                lambda checked=False,
-                c=card:
-                self.card_clicked.emit(c)
-            )
+                card_widget.card = card
 
-            card_widget.setEnabled(
-                self.active
-            )
+                card_widget.clicked.connect(
+                    lambda checked=False,
+                    c=card:
+                    self.card_clicked.emit(c)
+                )
 
-            # Restore playable highlighting after
-            # the hand is rebuilt.
-            card_widget.set_playable(
-                card in self.playable_cards
-            )
+                card_widget.setEnabled(
+                    self.active
+                )
 
-            self.cards.append(
-                card_widget
-            )
+                # Restore playable highlighting after
+                # the hand is rebuilt.
+                card_widget.set_playable(
+                    card in self.playable_cards
+                )
+
+                self.cards.append(
+                    card_widget
+                )
 
         # -------------------------------------------------
         # CREATE HAND LAYOUT
@@ -244,7 +251,13 @@ class PlayerSeat(QFrame):
 
             self.hand_widget = None
 
-        if self.hand_orientation == "vertical":
+        if self.hidden:
+
+            self.hand_widget = (
+                self.create_hidden_hand()
+            )
+
+        elif self.hand_orientation == "vertical":
 
             self.hand_widget = (
                 self.create_vertical_hand()
@@ -260,6 +273,67 @@ class PlayerSeat(QFrame):
             self.hand_widget,
             alignment=Qt.AlignCenter,
         )
+
+    # =====================================================
+    # HIDDEN HAND
+    # =====================================================
+
+    def create_hidden_hand(self):
+
+        "placeholder shown instead of a computer-controlled hand"
+
+        card_width = 42
+        card_height = 68
+
+        hand_widget = QFrame()
+
+        hand_widget.setObjectName(
+            "hiddenHand"
+        )
+
+        if self.hand_orientation == "vertical":
+
+            hand_widget.setFixedSize(
+                card_width,
+                card_height * 2,
+            )
+
+        else:
+
+            hand_widget.setFixedSize(
+                card_width * 3,
+                card_height,
+            )
+
+        hand_widget.setStyleSheet(
+            "QFrame#hiddenHand {"
+            "  background: rgba(255, 255, 255, 12);"
+            "  border: 1px dashed rgba(255, 255, 255, 60);"
+            "  border-radius: 6px;"
+            "}"
+            "QLabel {"
+            "  color: rgba(255, 255, 255, 140);"
+            "  background: transparent;"
+            "  border: none;"
+            "  font-size: 11px;"
+            "}"
+        )
+
+        layout = QVBoxLayout(hand_widget)
+
+        layout.setContentsMargins(
+            0, 0, 0, 0
+        )
+
+        label = QLabel("HIDDEN")
+
+        label.setAlignment(
+            Qt.AlignCenter
+        )
+
+        layout.addWidget(label)
+
+        return hand_widget
 
     # =====================================================
     # HORIZONTAL HAND

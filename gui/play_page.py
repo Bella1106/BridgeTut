@@ -93,6 +93,12 @@ class PlayPage(QWidget):
 
         self.doubling_state = None
 
+        # LessonState for a tutorial lesson, or None for a normal
+        # game. When set, East/West's cards stay hidden and are
+        # auto-played from the lesson's script instead of the GUI
+        # accepting clicks for them.
+        self.lesson_state = None
+
         # =================================================
         # PLAY STATE
         # =================================================
@@ -106,6 +112,8 @@ class PlayPage(QWidget):
         self.game_complete = False
 
         self.trick_timer = None
+
+        self.auto_play_timer = None
 
         self.trick_winner = None
 
@@ -201,6 +209,10 @@ class PlayPage(QWidget):
             data is not None
             and not self.game_loaded
         ):
+
+            self.lesson_state = data.get(
+                "lesson_state"
+            )
 
             self.players = data.get(
                 "players"
@@ -301,15 +313,28 @@ class PlayPage(QWidget):
             # GET OPENING LEADER
             # =================================================
 
-            self.current_player = (
-                self.get_leader()
-            )
+            if self.lesson_state is not None:
+
+                self.current_player = (
+                    self.lesson_state.current_player
+                )
+
+            else:
+
+                self.current_player = (
+                    self.get_leader()
+                )
 
             # =================================================
             # CREATE GAME RECORD
             # =================================================
 
-            self.create_game_record()
+            # Lessons are practice, not a game -- they are never
+            # saved to history.
+
+            if self.lesson_state is None:
+
+                self.create_game_record()
 
             self.game_loaded = True
 
@@ -378,9 +403,13 @@ class PlayPage(QWidget):
 
         self.update_seat_trump()
 
+        self.update_seat_visibility()
+
         self.update_playable_cards()
 
         self.update_undo_button()
+
+        self.maybe_auto_play_computer_card()
 
     # =====================================================
     # HAND DISPLAY ORDER
@@ -401,6 +430,32 @@ class PlayPage(QWidget):
                 continue
 
             seat.trump = self.trump_suit
+
+            seat.rebuild_hand()
+
+    # =====================================================
+    # LESSON SEAT VISIBILITY
+    # =====================================================
+
+    def update_seat_visibility(self):
+
+        """Keep each seat's hidden flag in sync with the current
+        lesson (or the lack of one).
+
+        Seats are only built once, so switching between a normal
+        game and a lesson -- or between lessons with different
+        user seats -- has to be pushed onto the existing seats.
+        """
+
+        for position, seat in self.player_seats.items():
+
+            hidden = self.is_computer_seat(position)
+
+            if seat.hidden == hidden:
+
+                continue
+
+            seat.hidden = hidden
 
             seat.rebuild_hand()
 
@@ -505,6 +560,12 @@ class PlayPage(QWidget):
 
             self.trick_timer = None
 
+        if self.auto_play_timer is not None:
+
+            self.auto_play_timer.stop()
+
+            self.auto_play_timer = None
+
         self.players = None
 
         self.dealer = None
@@ -518,6 +579,8 @@ class PlayPage(QWidget):
         self.history = []
 
         self.doubling_state = None
+
+        self.lesson_state = None
 
         self.game_record = None
 
@@ -611,13 +674,17 @@ class PlayPage(QWidget):
         # OPENING LEADER
         # =================================================
 
-        opening_leader = (
-            self.get_leader()
-        )
+        if self.lesson_state is not None:
 
-        self.current_player = (
-            opening_leader
-        )
+            self.current_player = (
+                self.lesson_state.current_player
+            )
+
+        else:
+
+            self.current_player = (
+                self.get_leader()
+            )
 
         # =================================================
         # PLAYER SEATS
@@ -635,6 +702,9 @@ class PlayPage(QWidget):
             dealer=False,
             hand_orientation="horizontal",
             trump=self.trump_suit,
+            hidden=self.is_computer_seat(
+                Position.NORTH
+            ),
         )
 
         north.setFixedHeight(
@@ -653,6 +723,9 @@ class PlayPage(QWidget):
             dealer=False,
             hand_orientation="vertical",
             trump=self.trump_suit,
+            hidden=self.is_computer_seat(
+                Position.WEST
+            ),
         )
 
         west.setFixedWidth(
@@ -671,6 +744,9 @@ class PlayPage(QWidget):
             dealer=False,
             hand_orientation="vertical",
             trump=self.trump_suit,
+            hidden=self.is_computer_seat(
+                Position.EAST
+            ),
         )
 
         east.setFixedWidth(
@@ -689,6 +765,9 @@ class PlayPage(QWidget):
             dealer=False,
             hand_orientation="horizontal",
             trump=self.trump_suit,
+            hidden=self.is_computer_seat(
+                Position.SOUTH
+            ),
         )
 
         south.setFixedHeight(
@@ -1086,22 +1165,32 @@ class PlayPage(QWidget):
         ]
 
         # =================================================
-        # DETERMINE LED SUIT
-        # =================================================
-
-        led_suit = determine_led_suit(
-            self.played_cards
-        )
-
-        # =================================================
         # VALIDATE PLAY
         # =================================================
 
-        if not is_valid_play(
-            player.hand,
-            card,
-            led_suit,
-        ):
+        if self.lesson_state is not None:
+
+            # A lesson checks the card against its script
+            # instead of the general follow-suit rules.
+
+            play_is_valid = self.lesson_state.attempt_play(
+                self.current_player,
+                card,
+            )
+
+        else:
+
+            led_suit = determine_led_suit(
+                self.played_cards
+            )
+
+            play_is_valid = is_valid_play(
+                player.hand,
+                card,
+                led_suit,
+            )
+
+        if not play_is_valid:
 
             seat = self.player_seats.get(
                 self.current_player
@@ -1184,7 +1273,12 @@ class PlayPage(QWidget):
                 f"{self.position_name(self.trick_winner)}"
             )
 
-            self.save_current_trick()
+            # Lessons are practice, not a game -- there is no
+            # GameRecord to save the trick into.
+
+            if self.lesson_state is None:
+
+                self.save_current_trick()
 
             # =================================================
             # UPDATE TRICK SCORE
@@ -1193,10 +1287,15 @@ class PlayPage(QWidget):
             self.update_score_display()
 
             # =================================================
-            # TRICK 13
+            # TRICK 13 -- OR, IN A LESSON, THE SCRIPT'S LAST PLAY
             # =================================================
 
-            if self.trick_number >= 13:
+            lesson_finished = (
+                self.lesson_state is not None
+                and self.lesson_state.is_complete()
+            )
+
+            if self.trick_number >= 13 or lesson_finished:
 
                 self.game_complete = True
 
@@ -1228,9 +1327,17 @@ class PlayPage(QWidget):
                         f"{self.game_record.final_score}"
                     )
 
-                print(
-                    "All 13 tricks completed."
-                )
+                if lesson_finished:
+
+                    print(
+                        "Lesson complete."
+                    )
+
+                else:
+
+                    print(
+                        "All 13 tricks completed."
+                    )
 
                 if self.game_complete_label is not None:
 
@@ -1286,11 +1393,21 @@ class PlayPage(QWidget):
         # MOVE TO NEXT PLAYER
         # =================================================
 
-        self.current_player = (
-            self.next_position(
-                self.current_player
+        if self.lesson_state is not None:
+
+            self.current_player = (
+                self.lesson_state.current_player
             )
-        )
+
+        else:
+
+            self.current_player = (
+                self.next_position(
+                    self.current_player
+                )
+            )
+
+        self.maybe_auto_play_computer_card()
 
         self.update_active_player()
 
@@ -1307,6 +1424,14 @@ class PlayPage(QWidget):
     def undo_last_play(
         self,
     ):
+
+        # Undo has no concept of a lesson's script -- rewinding a
+        # play here without rewinding LessonState too would desync
+        # the two, so undo is simply unavailable during a lesson.
+
+        if self.lesson_state is not None:
+
+            return
 
         if self.trick_timer is not None:
 
@@ -1397,13 +1522,16 @@ class PlayPage(QWidget):
             return
 
         can_undo = (
-            bool(
-                self.played_cards
-            )
-            or (
-                self.game_record is not None
-                and bool(
-                    self.game_record.tricks
+            self.lesson_state is None
+            and (
+                bool(
+                    self.played_cards
+                )
+                or (
+                    self.game_record is not None
+                    and bool(
+                        self.game_record.tricks
+                    )
                 )
             )
         )
@@ -2001,27 +2129,43 @@ class PlayPage(QWidget):
             self.current_player
         ]
 
-        # Determine the suit that was led.
-
-        led_suit = determine_led_suit(
-            self.played_cards
-        )
-
         playable_cards = []
 
-        # Use the existing backend validation logic.
+        if self.lesson_state is not None:
 
-        for card in player.hand.sorted_by_suit():
+            # A lesson hints at the one correct card, rather than
+            # highlighting everything the follow-suit rules allow.
 
-            if is_valid_play(
-                player.hand,
-                card,
-                led_suit,
+            if (
+                self.lesson_state.is_user_turn()
+                and self.lesson_state.expected_card is not None
             ):
 
                 playable_cards.append(
-                    card
+                    self.lesson_state.expected_card
                 )
+
+        else:
+
+            # Determine the suit that was led.
+
+            led_suit = determine_led_suit(
+                self.played_cards
+            )
+
+            # Use the existing backend validation logic.
+
+            for card in player.hand.sorted_by_suit():
+
+                if is_valid_play(
+                    player.hand,
+                    card,
+                    led_suit,
+                ):
+
+                    playable_cards.append(
+                        card
+                    )
 
         # Apply the gold rim only to legal cards.
 
@@ -2101,6 +2245,17 @@ class PlayPage(QWidget):
             self.trick_winner
         )
 
+        # In a lesson, the script is the single source of truth
+        # for whose turn it is -- it should already agree with the
+        # trick winner above, but this keeps the two from ever
+        # drifting apart.
+
+        if self.lesson_state is not None:
+
+            self.current_player = (
+                self.lesson_state.current_player
+            )
+
         self.trick_winner = None
 
         # =================================================
@@ -2112,6 +2267,8 @@ class PlayPage(QWidget):
         self.trick_number += 1
 
         self.update_trick_area()
+
+        self.maybe_auto_play_computer_card()
 
         self.update_active_player()
 
@@ -2158,6 +2315,7 @@ class PlayPage(QWidget):
                 position == self.current_player
                 and not self.game_complete
                 and len(self.played_cards) < 4
+                and not self.is_computer_seat(position)
             )
 
             seat.set_active(
@@ -2591,6 +2749,82 @@ class PlayPage(QWidget):
         return self.get_partner(
             self.declarer
         )
+
+    # =====================================================
+    # LESSON SEAT CONTROL
+    # =====================================================
+
+    def is_computer_seat(self, position):
+
+        "True for a seat the lesson script controls, not the user"
+
+        if self.lesson_state is None:
+
+            return False
+
+        return position not in (
+            self.lesson_state.lesson.user_seats
+        )
+
+    # =====================================================
+    # AUTO-PLAY (LESSON COMPUTER SEATS)
+    # =====================================================
+
+    def maybe_auto_play_computer_card(self):
+
+        """If it's a computer seat's turn in a lesson, play its
+        scripted card after a short delay.
+
+        Must only be called once played_cards reflects the trick
+        currently in progress -- not while a completed trick is
+        still being held on screen for the 2-second pause.
+        """
+
+        if self.lesson_state is None:
+
+            return
+
+        if self.lesson_state.is_complete():
+
+            return
+
+        if self.lesson_state.is_user_turn():
+
+            return
+
+        self.auto_play_timer = QTimer(
+            self
+        )
+
+        self.auto_play_timer.setSingleShot(
+            True
+        )
+
+        self.auto_play_timer.timeout.connect(
+            self.play_scripted_computer_card
+        )
+
+        self.auto_play_timer.start(
+            700
+        )
+
+    def play_scripted_computer_card(self):
+
+        self.auto_play_timer = None
+
+        if self.lesson_state is None:
+
+            return
+
+        if self.lesson_state.is_complete():
+
+            return
+
+        card = self.lesson_state.expected_card
+
+        if card is not None:
+
+            self.play_card(card)
 
     # =====================================================
     # OPENING LEADER

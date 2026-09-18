@@ -17,8 +17,11 @@ from .placeholder_page import PlaceholderPage
 from game_history.history_manager import HistoryManager
 from .history_page import HistoryPage
 
+from card_model.deck import deal_from
 from card_model.player import Position
 from game_logic.dealer import determine_next_dealer
+from game_logic.lesson import LessonState
+from game_logic.sample_lessons import build_sample_lesson
 
 
 class MainWindow(QMainWindow):
@@ -243,6 +246,9 @@ class MainWindow(QMainWindow):
 
             history_callback=lambda:
             self.navigate("History"),
+
+            lesson_callback=lambda:
+            self.start_lesson(),
         )
 
         self.pages.addWidget(
@@ -360,6 +366,49 @@ class MainWindow(QMainWindow):
 
         self.navigate(
             "Bidding"
+        )
+
+    # =====================================================
+    # PRACTICE LESSON (MODE 2: PLAY ONLY)
+    # =====================================================
+
+    def start_lesson(self):
+
+        # -------------------------------------------------
+        # Reset the existing PlayPage completely
+        # -------------------------------------------------
+
+        self.play_page.reset_for_new_game()
+
+        # -------------------------------------------------
+        # Build the lesson
+        # -------------------------------------------------
+
+        # PLACEHOLDER: always the one sample lesson, until real
+        # lessons are authored and there's a way to choose between
+        # them.
+
+        lesson = build_sample_lesson()
+
+        # -------------------------------------------------
+        # Skip bidding entirely -- the lesson already has its
+        # contract -- and hand PlayPage its data directly, the
+        # same way BiddingPage normally would.
+        # -------------------------------------------------
+
+        self.play_data = {
+            "players": deal_from(lesson.hands),
+            "dealer": lesson.dealer,
+            "board_number": None,
+            "contract": lesson.contract,
+            "declarer": lesson.contract.declarer,
+            "history": [],
+            "doubling_state": None,
+            "lesson_state": LessonState(lesson),
+        }
+
+        self.navigate(
+            "Play"
         )
 
     # =====================================================
