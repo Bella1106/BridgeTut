@@ -257,8 +257,8 @@ def test_mode_one_uses_south_as_declarer_and_west_as_opening_leader():
         fixture_path.read_text()
     )
 
-    # Game 2 is useful because its auction would not
-    # otherwise derive South as the declarer.
+    # Mode 1 lessons always use South as declarer,
+    # so West must be the opening leader.
     lesson = build_mode_one_lesson(data[0])
 
     assert lesson.contract.declarer == Position.SOUTH
@@ -340,5 +340,5 @@ def test_game_three_real_sponsor_lesson_builds_successfully():
     for position, card in lesson.script:
         assert state.attempt_play(position, card)
 
-    assert state.is_complete
+    assert state.is_complete()
     assert state.mistake_count == 0

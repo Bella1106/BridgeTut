@@ -99,6 +99,12 @@ class PlayPage(QWidget):
         # accepting clicks for them.
         self.lesson_state = None
 
+        # Tutorial hint is hidden until the learner makes
+        # a legal but incorrect scripted play.
+        self.show_lesson_hint = False
+        self.lesson_ending = None
+        self.lesson_note = None
+
         # =================================================
         # PLAY STATE
         # =================================================
@@ -212,6 +218,15 @@ class PlayPage(QWidget):
 
             self.lesson_state = data.get(
                 "lesson_state"
+            )
+            self.show_lesson_hint = False
+
+            self.lesson_ending = data.get(
+                "lesson_ending"
+            )
+
+            self.lesson_note = data.get(
+                "lesson_note"
             )
 
             self.players = data.get(
@@ -581,6 +596,10 @@ class PlayPage(QWidget):
         self.doubling_state = None
 
         self.lesson_state = None
+
+        self.show_lesson_hint = False
+        self.lesson_ending = None
+        self.lesson_note = None
 
         self.game_record = None
 
@@ -1176,18 +1195,13 @@ class PlayPage(QWidget):
             self.played_cards
         )
 
+        # First validate normal Bridge rules.
+
         play_is_valid = is_valid_play(
             player.hand,
             card,
             led_suit,
         )
-
-        if play_is_valid and self.lesson_state is not None:
-
-            play_is_valid = self.lesson_state.attempt_play(
-                self.current_player,
-                card,
-            )
 
         if not play_is_valid:
 
@@ -1199,16 +1213,54 @@ class PlayPage(QWidget):
 
                 for card_widget in seat.cards:
 
-                    if (
-                        card_widget.card
-                        == card
-                    ):
+                    if card_widget.card == card:
 
                         card_widget.mark_invalid()
 
                         break
 
             return
+
+        # In a lesson, the card must ALSO match
+        # the prescribed tutorial script.
+
+        if self.lesson_state is not None:
+
+            script_is_valid = (
+                self.lesson_state.attempt_play(
+                    self.current_player,
+                    card,
+                )
+            )
+
+            if not script_is_valid:
+
+                # The learner chose a legal Bridge card,
+                # but not the prescribed lesson card.
+                # Reveal the hint only after this attempt.
+                self.show_lesson_hint = True
+
+                seat = self.player_seats.get(
+                    self.current_player
+                )
+
+                if seat is not None:
+
+                    for card_widget in seat.cards:
+
+                        if card_widget.card == card:
+
+                            card_widget.mark_invalid()
+
+                            break
+
+                self.update_playable_cards()
+
+                return
+
+        # A correct play completes this decision.
+        # Hide the hint again for the next user turn.
+        self.show_lesson_hint = False
 
         print(
             f"{self.current_player.value} "
@@ -1336,6 +1388,35 @@ class PlayPage(QWidget):
 
                     print(
                         "All 13 tricks completed."
+                    )
+
+                if (
+                    lesson_finished
+                    and self.game_complete_label is not None
+                ):
+                    ending_text = (
+                        str(self.lesson_ending)
+                        if self.lesson_ending
+                        else "Complete"
+                    )
+
+                    note_text = (
+                        self.lesson_note
+                        if self.lesson_note
+                        else "Lesson completed successfully."
+                    )
+
+                    self.game_complete_label.setText(
+                        "LESSON COMPLETE\n\n"
+                        f"Ending: {ending_text}\n\n"
+                        f"{note_text}"
+                    )
+
+                elif self.game_complete_label is not None:
+                    self.game_complete_label.setText(
+                        "GAME COMPLETE\n\n"
+                        "All 13 tricks have been played.\n"
+                       "The game has been saved to history."
                     )
 
                 if self.game_complete_label is not None:
@@ -2132,11 +2213,13 @@ class PlayPage(QWidget):
 
         if self.lesson_state is not None:
 
-            # A lesson hints at the one correct card, rather than
-            # highlighting everything the follow-suit rules allow.
+            # Do not reveal the prescribed answer immediately.
+            # The hint appears only after the learner has made
+            # a legal but incorrect scripted choice.
 
             if (
-                self.lesson_state.is_user_turn()
+                self.show_lesson_hint
+                and self.lesson_state.is_user_turn()
                 and self.lesson_state.expected_card is not None
             ):
 
@@ -2378,9 +2461,10 @@ class PlayPage(QWidget):
 
             if self.game_complete:
 
-                self.trick_value.setText(
-                    "13 / 13"
-                )
+                if self.lesson_state is not None:
+                    self.trick_value.setText(f"{self.trick_number} tricks")
+                else:
+                    self.trick_value.setText("13 / 13")
 
             else:
 
@@ -2664,21 +2748,41 @@ class PlayPage(QWidget):
             )
 
         if self.game_complete:
+            if self.lesson_state is not None:
+                ending_text = (
+                    str(self.lesson_ending)
+                    if self.lesson_ending
+                    else "Complete"
+                )
 
-            status = (
-                "> 13 tricks completed.\n\n"
-                "> Complete game saved to history.\n\n"
-                f"> {tricks_saved}/13 tricks recorded."
-            )
+                status = (
+                    f"> Lesson complete.\n\n"
+                    f"> Ending: {ending_text}.\n\n"
+                    "> Practice lessons are not saved "
+                    "to game history."
+                )
+
+            else:
+                status = (
+                    "> 13 tricks completed.\n\n"
+                    "> Complete game saved to history.\n\n"
+                    f"> {tricks_saved}/13 tricks recorded."
+                )
 
         else:
-
-            status = (
-                f"> Current turn: "
-                f"{current_letter}.\n\n"
-                f"> {tricks_saved} trick(s) "
-                f"saved to history."
-            )
+            if self.lesson_state is not None:
+                status = (
+                    f"> Current turn: "
+                    f"{current_letter}.\n\n"
+                    f"Practice lesson in progress."
+                )
+            else:
+                status = (
+                    f"> Current turn: "
+                    f"{current_letter}.\n\n"
+                    f"> {tricks_saved} trick(s) "
+                    f"saved to history."
+                )
 
         self.game_log.setText(
             f"> Cards dealt. "

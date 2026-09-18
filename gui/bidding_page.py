@@ -18,7 +18,7 @@ The GUI then passes the completed game data to PlayPage.
 The game is NOT saved to HistoryManager here.
 The game is saved by PlayPage.
 """
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QFrame,
+    QMessageBox,
 )
 
 from bidding.bid import Bid, Denomination
@@ -77,6 +78,7 @@ POSITIONS_IN_ORDER = [
 
 
 class BiddingPage(QWidget):
+    guided_auction_finished = Signal(object)
 
     def __init__(
         self,
@@ -1190,6 +1192,75 @@ class BiddingPage(QWidget):
         )
 
     # =====================================================
+    # GUIDED BIDDING FEEDBACK
+    # =====================================================
+
+    def show_guided_bidding_mistake(
+        self,
+    ):
+
+        message_box = QMessageBox(
+            self
+        )
+
+        message_box.setWindowTitle(
+            "Try Again"
+        )
+
+        message_box.setIcon(
+            QMessageBox.Information
+        )
+
+        message_box.setText(
+            "That isn't the prescribed call for this lesson."
+        )
+
+        message_box.setInformativeText(
+            "Have another look at your hand and try again."
+        )
+
+        message_box.setStandardButtons(
+            QMessageBox.Ok
+        )
+
+        # QMessageBox uses the operating system's light background,
+        # so override BridgeTut's global light-label styling here.
+        message_box.setStyleSheet(
+            """
+            QMessageBox {
+                background-color: #11271d;
+            }
+
+            QMessageBox QLabel {
+                color: #f1f4f2;
+                font-size: 13px;
+                #min-width: 360px;
+            }
+
+            QMessageBox QPushButton {
+                min-width: 70px;
+                min-height: 28px;
+                color: #071710;
+                background-color: ##51b5ba;
+                border: none;
+                border-radius: 6px;
+                font-size: 13px;
+                font-weight: bold;;
+            }
+
+            QMessageBox QPushButton:hover {
+                background-color: #68c4c8;
+            }
+
+            QMessageBox QPushButton:pressed {
+                background-color: #3f9da2;
+            }
+            """
+        )
+
+        message_box.exec()
+
+    # =====================================================
     # GUIDED BIDDING
     # =====================================================
     def advance_guided_bidding(
@@ -1198,7 +1269,7 @@ class BiddingPage(QWidget):
         if self.guided_bidding_state is None:
             return
 
-        if self.guided_bidding_state.is_complete:
+        if self.guided_bidding_state.is_complete():
             self.finish_guided_auction()
             return
 
@@ -1206,9 +1277,28 @@ class BiddingPage(QWidget):
 
         self.update_bidding_ui()
 
-        if self.guided_bidding_state.is_complete:
+        if self.guided_bidding_state.is_complete():
             self.finish_guided_auction()
 
+    def finish_guided_auction(self):
+        if self.guided_bidding_state is None:
+            return
+
+        if not self.guided_bidding_state.is_complete():
+            return
+
+        if self.tutorial_lesson_data is None:
+            return
+
+        if self.auction_completed:
+            return
+
+        self.auction_completed = True
+        self.update_bidding_ui()
+
+        self.guided_auction_finished.emit(
+            self.tutorial_lesson_data
+        )
     # =====================================================
     # BID CLICK
     # =====================================================
@@ -1225,11 +1315,13 @@ class BiddingPage(QWidget):
         if self.guided_bidding_state is not None:
             accepted = (
                 self.guided_bidding_state.attempt_call(
+                    Position.SOUTH,
                     bid
                 )
             )
 
             if not accepted:
+                self.show_guided_bidding_mistake()
                 return
 
             self.advance_guided_bidding()
@@ -1269,11 +1361,13 @@ class BiddingPage(QWidget):
         if self.guided_bidding_state is not None:
             accepted = (
                 self.guided_bidding_state.attempt_call(
+                    Position.SOUTH,
                     None
                 )
             )
 
             if not accepted:
+                self.show_guided_bidding_mistake()
                 return
 
             self.advance_guided_bidding()
@@ -1312,11 +1406,13 @@ class BiddingPage(QWidget):
         if self.guided_bidding_state is not None:
             accepted = (
                 self.guided_bidding_state.attempt_call(
+                    Position.SOUTH,
                     SpecialCall.DOUBLE
                 )
             )
 
             if not accepted:
+                self.show_guided_bidding_mistake()
                 return
 
             self.advance_guided_bidding()
@@ -1355,11 +1451,13 @@ class BiddingPage(QWidget):
         if self.guided_bidding_state is not None:
             accepted = (
                 self.guided_bidding_state.attempt_call(
+                    Position.SOUTH,
                     SpecialCall.REDOUBLE
                 )
             )
 
             if not accepted:
+                self.show_guided_bidding_mistake()
                 return
 
             self.advance_guided_bidding()
@@ -1401,8 +1499,8 @@ class BiddingPage(QWidget):
 
         if self.guided_bidding_state is not None:
             user_can_call = (
-                self.guided_bidding_state.is_user_turn
-                and not self.guided_bidding_state.is_complete
+                self.guided_bidding_state.is_user_turn()
+                and not self.guided_bidding_state.is_complete()
             )
         else:
             user_can_call = True
