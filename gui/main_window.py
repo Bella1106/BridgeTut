@@ -11,31 +11,33 @@ from PySide6.QtWidgets import (
     QStackedWidget,
 )
 
+from .placeholder_page import PlaceholderPage
 from .home_page import HomePage
 from .bidding_page import BiddingPage
 from .play_page import PlayPage
-from .placeholder_page import PlaceholderPage
-
-from game_history.history_manager import HistoryManager
 from .history_page import HistoryPage
 
+from game_history.history_manager import HistoryManager
 from card_model.deck import deal_from
 from card_model.player import Position
 from game_logic.dealer import determine_next_dealer
 from game_logic.lesson import LessonState
 from game_logic.tutorial_parser import parse_bid_and_play_lessons
 from game_logic.tutorial_play import build_mode_one_lesson
-from game_logic.guided_bidding import GuidedBiddingState, GuidedBiddingLesson
+from game_logic.guided_bidding import (
+    GuidedBiddingState,
+    GuidedBiddingLesson,
+)
+from game_logic.tutorial_bbo_examples import (
+    get_bbo_tutorials,
+    load_bbo_tutorial,
+)
 
 
 class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-
-        # -------------------------------------------------
-        # WINDOW
-        # -------------------------------------------------
 
         self.setWindowTitle(
             "BridgeTut"
@@ -51,57 +53,21 @@ class MainWindow(QMainWindow):
             700
         )
 
-        # -------------------------------------------------
-        # DEALER
-        # -------------------------------------------------
-
-        # South is the dealer for the first game.
-        # The dealer rotates after each new game.
         self.current_dealer = Position.SOUTH
 
-        # -------------------------------------------------
-        # BOARD NUMBER
-        # -------------------------------------------------
-
-        # Vulnerability is fixed by the board number, so the
-        # boards are counted from 1 and never reset.
         self.board_number = 1
-
-        # -------------------------------------------------
-        # DATA PASSED FROM BIDDING -> PLAY
-        # -------------------------------------------------
 
         self.play_data = None
 
-        # -------------------------------------------------
-        # GAME HISTORY
-        # -------------------------------------------------
-
         self.history_manager = HistoryManager()
-
-        # -------------------------------------------------
-        # STYLE
-        # -------------------------------------------------
 
         self.setStyleSheet(
             self.get_stylesheet()
         )
 
-        # -------------------------------------------------
-        # BUILD UI
-        # -------------------------------------------------
-
         self.setup_ui()
 
-    # =====================================================
-    # UI
-    # =====================================================
-
     def setup_ui(self):
-
-        # -------------------------------------------------
-        # CENTRAL WIDGET
-        # -------------------------------------------------
 
         central_widget = QWidget()
 
@@ -128,10 +94,6 @@ class MainWindow(QMainWindow):
             0
         )
 
-        # -------------------------------------------------
-        # NAVIGATION BAR
-        # -------------------------------------------------
-
         navigation = QWidget()
 
         navigation.setObjectName(
@@ -153,10 +115,6 @@ class MainWindow(QMainWindow):
             8
         )
 
-        # -------------------------------------------------
-        # BRAND
-        # -------------------------------------------------
-
         brand = QLabel(
             "BridgeTut"
         )
@@ -168,10 +126,6 @@ class MainWindow(QMainWindow):
         nav_layout.addWidget(
             brand
         )
-
-        # -------------------------------------------------
-        # PAGE TITLE
-        # -------------------------------------------------
 
         page_title = QLabel(
             "Home"
@@ -186,10 +140,6 @@ class MainWindow(QMainWindow):
         )
 
         nav_layout.addStretch()
-
-        # -------------------------------------------------
-        # NAVIGATION BUTTONS
-        # -------------------------------------------------
 
         self.nav_buttons = {}
 
@@ -230,19 +180,11 @@ class MainWindow(QMainWindow):
             navigation
         )
 
-        # -------------------------------------------------
-        # PAGE STACK
-        # -------------------------------------------------
-
         self.pages = QStackedWidget()
 
         main_layout.addWidget(
             self.pages
         )
-
-        # =================================================
-        # HOME
-        # =================================================
 
         self.home_page = HomePage(
             new_game_callback=lambda:
@@ -251,19 +193,18 @@ class MainWindow(QMainWindow):
             history_callback=lambda:
             self.navigate("History"),
 
-            # TODO: Replace temporary Mode 1 launcher once the
-            # final lesson-selection GUI is integrated.
             lesson_callback=lambda:
             self.start_test_mode_one(),
+
+            tutorials_callback=lambda mode, filename:
+            self.start_bbo_example(filename)
+            if mode == "bbo"
+            else None,
         )
 
         self.pages.addWidget(
             self.home_page
         )
-
-        # =================================================
-        # BIDDING
-        # =================================================
 
         self.bidding_page = BiddingPage(
             dealer=self.current_dealer,
@@ -274,20 +215,11 @@ class MainWindow(QMainWindow):
             self.bidding_page
         )
 
-        # =================================================
-        # PLAY
-        # =================================================
-
         self.play_page = PlayPage()
 
         self.pages.addWidget(
             self.play_page
         )
-
-
-        # =================================================
-        # HISTORY
-        # =================================================
 
         self.history_page = HistoryPage(
             self.history_manager
@@ -297,49 +229,21 @@ class MainWindow(QMainWindow):
             self.history_page
         )
 
-        # -------------------------------------------------
-        # STORE PAGE TITLE
-        # -------------------------------------------------
-
         self.page_title = page_title
-
-        # -------------------------------------------------
-        # START ON HOME
-        # -------------------------------------------------
 
         self.navigate(
             "Home"
         )
 
-    # =====================================================
-    # NEW GAME
-    # =====================================================
-
     def start_new_game(self):
 
-        # -------------------------------------------------
-        # Reset the existing PlayPage completely
-        # -------------------------------------------------
-
         self.play_page.reset_for_new_game()
-
-        # -------------------------------------------------
-        # Rotate dealer
-        # -------------------------------------------------
 
         self.current_dealer = determine_next_dealer(
             self.current_dealer
         )
 
-        # -------------------------------------------------
-        # Advance to the next board
-        # -------------------------------------------------
-
         self.board_number += 1
-
-        # -------------------------------------------------
-        # Replace the existing BiddingPage
-        # -------------------------------------------------
 
         old_bidding_page = self.bidding_page
 
@@ -348,9 +252,8 @@ class MainWindow(QMainWindow):
             board_number=self.board_number,
         )
 
-        # Replace the existing bidding page at index 2.
         self.pages.insertWidget(
-            2,
+            1,
             self.bidding_page
         )
 
@@ -360,35 +263,62 @@ class MainWindow(QMainWindow):
 
         old_bidding_page.deleteLater()
 
-        # -------------------------------------------------
-        # Reset play data
-        # -------------------------------------------------
-
         self.play_data = None
-
-        # -------------------------------------------------
-        # Go to bidding
-        # -------------------------------------------------
 
         self.navigate(
             "Bidding"
         )
 
-    # =====================================================
-    # TUTORIAL LESSON (MODE 1: BID + PLAY)
-    # =====================================================
-
-    def start_bid_and_play_lesson(self, tutorial_data):
-
-        # -------------------------------------------------
-        # Reset PlayPage
-        # -------------------------------------------------
+    def start_bbo_example(
+        self,
+        filename,
+    ):
 
         self.play_page.reset_for_new_game()
 
-        # -------------------------------------------------
-        # Build guided bidding state
-        # -------------------------------------------------
+        selected_tutorial = None
+
+        for tutorial in get_bbo_tutorials():
+            if tutorial.filename == filename:
+                selected_tutorial = tutorial
+                break
+
+        if selected_tutorial is None:
+            return
+
+        bbo_game_data = load_bbo_tutorial(
+            selected_tutorial
+        )
+
+        old_bidding_page = self.bidding_page
+
+        self.bidding_page = BiddingPage(
+            bbo_game_data=bbo_game_data,
+        )
+
+        self.pages.insertWidget(
+            1,
+            self.bidding_page
+        )
+
+        self.pages.removeWidget(
+            old_bidding_page
+        )
+
+        old_bidding_page.deleteLater()
+
+        self.play_data = None
+
+        self.navigate(
+            "Bidding"
+        )
+
+    def start_bid_and_play_lesson(
+        self,
+        tutorial_data,
+    ):
+
+        self.play_page.reset_for_new_game()
 
         guided_lesson = GuidedBiddingLesson(
             dealer=tutorial_data.dealer,
@@ -399,10 +329,6 @@ class MainWindow(QMainWindow):
         guided_state = GuidedBiddingState(
             guided_lesson
         )
-
-        # -------------------------------------------------
-        # Replace normal BiddingPage with tutorial version
-        # -------------------------------------------------
 
         old_bidding_page = self.bidding_page
 
@@ -432,23 +358,14 @@ class MainWindow(QMainWindow):
             "Bidding"
         )
 
-
     def finish_bid_and_play_lesson(
         self,
         tutorial_data,
     ):
 
-        # -------------------------------------------------
-        # Build prescribed play lesson
-        # -------------------------------------------------
-
         lesson = build_mode_one_lesson(
             tutorial_data
         )
-
-        # -------------------------------------------------
-        # Hand lesson to existing PlayPage infrastructure
-        # -------------------------------------------------
 
         self.play_data = {
             "players": deal_from(lesson.hands),
@@ -470,24 +387,9 @@ class MainWindow(QMainWindow):
             "Play"
         )
 
-    # =====================================================
-    # PRACTICE LESSON (MODE 2: PLAY ONLY)
-    # =====================================================
-
     def start_lesson(self):
 
-        # -------------------------------------------------
-        # Reset the existing PlayPage completely
-        # -------------------------------------------------
-
         self.play_page.reset_for_new_game()
-
-        # -------------------------------------------------
-        # Build the lesson
-        # -------------------------------------------------
-
-        # PLACEHOLDER: always the first of Sonia's real sponsor
-        # lessons, until there's a way to choose between them.
 
         lessons_file = (
             Path(__file__).resolve().parent.parent
@@ -503,12 +405,6 @@ class MainWindow(QMainWindow):
         lesson = build_mode_one_lesson(
             tutorial_data
         )
-
-        # -------------------------------------------------
-        # Skip bidding entirely -- the lesson already has its
-        # contract -- and hand PlayPage its data directly, the
-        # same way BiddingPage normally would.
-        # -------------------------------------------------
 
         self.play_data = {
             "players": deal_from(lesson.hands),
@@ -526,10 +422,6 @@ class MainWindow(QMainWindow):
         self.navigate(
             "Play"
         )
-
-    # =====================================================
-    # NAVIGATION
-    # =====================================================
 
     def navigate(
         self,
@@ -554,10 +446,6 @@ class MainWindow(QMainWindow):
             page_name
         )
 
-        # -------------------------------------------------
-        # ACTIVE NAVIGATION BUTTON
-        # -------------------------------------------------
-
         for name, button in self.nav_buttons.items():
 
             button.setProperty(
@@ -573,34 +461,18 @@ class MainWindow(QMainWindow):
                 button
             )
 
-        # -------------------------------------------------
-        # PLAY
-        # -------------------------------------------------
-
         if page_name == "Play":
 
             self.play_page.load_game()
-
-        # -------------------------------------------------
-        # HISTORY
-        # -------------------------------------------------
 
         if page_name == "History":
 
             self.history_page.refresh_history()
 
-    # =====================================================
-    # APPLICATION STYLE
-    # =====================================================
-
     @staticmethod
     def get_stylesheet():
 
         return """
-
-        /* =================================================
-           GLOBAL
-        ================================================= */
 
         * {
             font-family: "Segoe UI", Arial, sans-serif;
@@ -614,115 +486,63 @@ class MainWindow(QMainWindow):
             background-color: #071710;
         }
 
-        /* =================================================
-           NAVIGATION BAR
-        ================================================= */
-
         QWidget#navigationBar {
-
             background-color: #11271d;
-
             border-bottom: 1px solid #294238;
-
             min-height: 62px;
             max-height: 62px;
         }
 
-        /* =================================================
-           BRIDGETUT LOGO
-        ================================================= */
-
         QLabel#brand {
-
             color: #e5c557;
-
             font-family: Georgia, serif;
-
             font-size: 21px;
-
             font-weight: bold;
         }
 
-        /* =================================================
-           CURRENT PAGE TITLE
-        ================================================= */
-
         QLabel#pageTitle {
-
             color: #f1f4f2;
-
             font-size: 17px;
-
             font-weight: bold;
-
             padding-left: 4px;
         }
 
-        /* =================================================
-           NAVIGATION BUTTONS
-        ================================================= */
-
         QPushButton#navButton {
-
             background-color: transparent;
-
             color: #c7d2cc;
-
             border: none;
-
             border-radius: 6px;
-
             padding: 9px 14px;
-
             font-size: 14px;
         }
 
         QPushButton#navButton:hover {
-
             background-color: #1b3b2d;
-
             color: white;
         }
 
         QPushButton#navButton[active="true"] {
-
             background-color: #51b5ba;
-
             color: #071710;
-
             font-weight: bold;
         }
-
-        /* =================================================
-           GENERAL LABELS
-        ================================================= */
 
         QLabel {
             color: #f1f4f2;
         }
 
-        /* =================================================
-           SCROLL BAR
-        ================================================= */
-
         QScrollBar:vertical {
-
             background: #071710;
-
             width: 10px;
         }
 
         QScrollBar::handle:vertical {
-
             background: #29483b;
-
             border-radius: 5px;
         }
 
         """
 
-    # TODO: Temporary launcher for testing Mode 1.
-    # Remove once lesson selection is wired into the GUI.
     def start_test_mode_one(self):
 
         lessons_file = (
