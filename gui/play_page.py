@@ -24,6 +24,7 @@ GUI responsibilities:
 - Display the final game result in a popup
 - Display BBO makeable-tricks information when playing a BBO example
 - Trigger undo operations
+- Persist/resume an unfinished game
 """
 
 from PySide6.QtCore import Qt, QTimer
@@ -97,10 +98,6 @@ class PlayPage(QWidget):
         self.vulnerability = None
 
         # BBO makeable-tricks reference table.
-        #
-        # None = normal game / scripted tutorial
-        #
-        # dict = BBO example
 
         self.makeable_tricks = None
 
@@ -113,16 +110,21 @@ class PlayPage(QWidget):
         self.doubling_state = None
 
         # LessonState for a tutorial lesson, or None for a normal
-        # game. When set, East/West's cards stay hidden and are
-        # auto-played from the lesson's script instead of the GUI
-        # accepting clicks for them.
+        # game.
+
         self.lesson_state = None
 
-        # Tutorial hint is hidden until the learner makes
-        # a legal but incorrect scripted play.
         self.show_lesson_hint = False
         self.lesson_ending = None
         self.lesson_note = None
+
+        # =================================================
+        # CONTRACT TARGETS
+        # =================================================
+
+        self.declarer_target = None
+
+        self.defence_target = None
 
         # =================================================
         # PLAY STATE
@@ -160,10 +162,6 @@ class PlayPage(QWidget):
 
         self.game_log = None
 
-        # IMPORTANT:
-        # Keep the backend trump Suit separate from
-        # the centre trump QLabel.
-
         self.trump_suit = None
 
         self.trump = None
@@ -173,9 +171,6 @@ class PlayPage(QWidget):
         self.trick_slots = {}
 
         self.game_complete_label = None
-
-        # Undo button is placed inside the green
-        # play table beside South's cards.
 
         self.undo_button = None
 
@@ -227,10 +222,292 @@ class PlayPage(QWidget):
             data = window.play_data
 
         # =================================================
+        # RESUME EXISTING GAME
+        # =================================================
+        #
+        # A resumed game already has a GameRecord.
+        #
+        # Do NOT create another GameRecord here.
+        #
+        # The existing record contains:
+        # - the original deal
+        # - contract
+        # - declarer
+        # - bidding history
+        # - completed tricks
+        #
+        # We also persist additional resume-only attributes
+        # on the GameRecord:
+        #
+        # - current_played_cards
+        # - current_player
+        # - current_trick_number
+        # - current_trick_winner
+        #
+        # These are normal instance attributes and are therefore
+        # included by GameRecord's existing pickle persistence.
+
+        resume_record = None
+
+        if data is not None:
+
+            resume_record = data.get(
+                "resume_game_record"
+            )
+
+        if (
+            resume_record is not None
+            and not self.game_loaded
+        ):
+
+            # =================================================
+            # LOAD EXISTING RECORD
+            # =================================================
+
+            self.game_record = resume_record
+
+            self.players = (
+                resume_record.players
+            )
+
+            self.dealer = (
+                resume_record.dealer
+            )
+
+            self.board_number = (
+                resume_record.board_number
+            )
+
+            self.contract = (
+                resume_record.contract
+            )
+
+            self.declarer = (
+                resume_record.declarer
+            )
+
+            self.history = list(
+                getattr(
+                    resume_record,
+                    "bidding_history",
+                    [],
+                )
+            )
+
+            self.doubling_state = (
+                getattr(
+                    resume_record,
+                    "doubling_state",
+                    None,
+                )
+            )
+
+            self.makeable_tricks = (
+                getattr(
+                    resume_record,
+                    "makeable_tricks",
+                    None,
+                )
+            )
+
+            # GameRecord.vulnerability is a read-only property,
+            # so read it rather than trying to assign to it.
+            try:
+
+                self.vulnerability = (
+                    resume_record.vulnerability
+                )
+
+            except Exception:
+
+                self.vulnerability = (
+                    determine_vulnerability(
+                        self.board_number
+                    )
+                )
+
+            # If the contract contains the authoritative
+            # declarer, keep that behaviour from normal loading.
+
+            if self.contract is not None:
+
+                contract_declarer = getattr(
+                    self.contract,
+                    "declarer",
+                    None,
+                )
+
+                if contract_declarer is not None:
+
+                    self.declarer = (
+                        contract_declarer
+                    )
+
+            # =================================================
+            # RESTORE CURRENT PLAY STATE
+            # =================================================
+
+            saved_played_cards = getattr(
+                resume_record,
+                "current_played_cards",
+                {},
+            )
+
+            self.played_cards = dict(
+                saved_played_cards
+            )
+
+            saved_trick_number = getattr(
+                resume_record,
+                "current_trick_number",
+                None,
+            )
+
+            if saved_trick_number is None:
+
+                saved_trick_number = (
+                    resume_record.tricks_played
+                    + 1
+                )
+
+            self.trick_number = (
+                saved_trick_number
+            )
+
+            self.trick_winner = getattr(
+                resume_record,
+                "current_trick_winner",
+                None,
+            )
+
+            self.current_player = getattr(
+                resume_record,
+                "current_player",
+                None,
+            )
+
+            self.game_complete = False
+
+            self.lesson_state = None
+            self.show_lesson_hint = False
+            self.lesson_ending = None
+            self.lesson_note = None
+
+            # =================================================
+            # NORMALISE A SAVED COMPLETED TRICK
+            # =================================================
+            #
+            # If the application was closed during the 2-second
+            # pause after the fourth card, the current trick may
+            # contain all four cards while the GameRecord already
+            # contains that completed trick.
+            #
+            # On resume, immediately move to the next trick.
+
+            if (
+                len(self.played_cards) == 4
+                and self.trick_winner is not None
+            ):
+
+                self.current_player = (
+                    self.trick_winner
+                )
+
+                self.played_cards = {}
+
+                self.trick_winner = None
+
+                self.trick_number = (
+                    resume_record.tricks_played
+                    + 1
+                )
+
+            # =================================================
+            # FALLBACK CURRENT PLAYER
+            # =================================================
+            #
+            # This also allows older history files, which do not
+            # have the newer resume attributes, to resume.
+
+            if self.current_player is None:
+
+                if resume_record.tricks:
+
+                    last_trick = (
+                        resume_record.tricks[-1]
+                    )
+
+                    self.current_player = (
+                        last_trick.get(
+                            "winner"
+                        )
+                    )
+
+                if self.current_player is None:
+
+                    self.current_player = (
+                        self.get_leader()
+                    )
+
+            # =================================================
+            # FALLBACK TRICK NUMBER
+            # =================================================
+
+            if (
+                self.trick_number < 1
+                or self.trick_number > 13
+            ):
+
+                self.trick_number = (
+                    resume_record.tricks_played
+                    + 1
+                )
+
+            # =================================================
+            # SCORE DISPLAY
+            # =================================================
+
+            self.declarer_score = None
+            self.declarer_needed = None
+            self.defence_score = None
+            self.defence_needed = None
+
+            self.set_score_targets()
+
+            # =================================================
+            # TRUMP
+            # =================================================
+
+            self.trump_suit = (
+                self.get_trump_suit()
+            )
+
+            # =================================================
+            # COMPLETION UI
+            # =================================================
+
+            if self.game_complete_label is not None:
+
+                self.game_complete_label.hide()
+
+            self.game_loaded = True
+
+            print(
+                f"Resumed GameRecord "
+                f"#{self.game_record.game_id}."
+            )
+
+            print(
+                f"Resumed at trick "
+                f"{self.trick_number}, "
+                f"{len(self.played_cards)}/4 cards played."
+            )
+
+        # =================================================
         # LOAD DATA FROM BIDDING PAGE
         # =================================================
 
-        if (
+        elif (
             data is not None
             and not self.game_loaded
         ):
@@ -238,6 +515,7 @@ class PlayPage(QWidget):
             self.lesson_state = data.get(
                 "lesson_state"
             )
+
             self.show_lesson_hint = False
 
             self.lesson_ending = data.get(
@@ -264,12 +542,6 @@ class PlayPage(QWidget):
             # VULNERABILITY
             # =================================================
 
-            # BBO games provide vulnerability explicitly.
-            #
-            # Normal games leave this as None and use the
-            # board-number calculation when the final result
-            # is displayed.
-
             self.vulnerability = data.get(
                 "vulnerability"
             )
@@ -278,14 +550,13 @@ class PlayPage(QWidget):
             # BBO MAKEABLE TRICKS
             # =================================================
 
-            # This is populated only for BBO examples.
-            #
-            # The values come directly from the BBO hand
-            # record and are not calculated by BridgeTut.
-
             self.makeable_tricks = data.get(
                 "makeable_tricks"
             )
+
+            # =================================================
+            # CONTRACT
+            # =================================================
 
             self.contract = data.get(
                 "contract"
@@ -355,6 +626,12 @@ class PlayPage(QWidget):
             self.defence_needed = None
 
             # =================================================
+            # SET CONTRACT TARGETS
+            # =================================================
+
+            self.set_score_targets()
+
+            # =================================================
             # SET TRUMP
             # =================================================
 
@@ -389,9 +666,6 @@ class PlayPage(QWidget):
             # =================================================
             # CREATE GAME RECORD
             # =================================================
-
-            # Lessons are practice, not a game -- they are never
-            # saved to history.
 
             if self.lesson_state is None:
 
@@ -440,6 +714,8 @@ class PlayPage(QWidget):
 
             self.current_player = None
 
+            self.set_score_targets()
+
             if self.game_complete_label is not None:
 
                 self.game_complete_label.hide()
@@ -479,16 +755,101 @@ class PlayPage(QWidget):
         self.maybe_auto_play_computer_card()
 
     # =====================================================
+    # PERSIST RESUME STATE
+    # =====================================================
+
+    def persist_resume_state(self):
+
+        """
+        Persist the state needed to resume an unfinished game.
+
+        The existing GameRecord pickle mechanism stores arbitrary
+        instance attributes, so these values do not require a
+        separate persistence system.
+
+        Important:
+        GameRecord.vulnerability is a read-only property and must
+        NOT be assigned here.
+        """
+
+        if self.game_record is None:
+
+            return
+
+        self.game_record.current_played_cards = dict(
+            self.played_cards
+        )
+
+        self.game_record.current_player = (
+            self.current_player
+        )
+
+        self.game_record.current_trick_number = (
+            self.trick_number
+        )
+
+        self.game_record.current_trick_winner = (
+            self.trick_winner
+        )
+
+        self.game_record._notify_change()
+
+    # =====================================================
+    # SET CONTRACT SCORE TARGETS
+    # =====================================================
+
+    def set_score_targets(self):
+
+        """
+        Set the fixed number of tricks required by each side
+        from the CURRENT contract.
+
+        Declarer:
+            contract level + 6
+
+        Defence:
+            14 - declarer target
+        """
+
+        if self.contract is None:
+
+            self.declarer_target = None
+
+            self.defence_target = None
+
+            return
+
+        contract_level = getattr(
+            self.contract,
+            "level",
+            None,
+        )
+
+        if contract_level is None:
+
+            self.declarer_target = None
+
+            self.defence_target = None
+
+            return
+
+        self.declarer_target = (
+            contract_level
+            + 6
+        )
+
+        self.defence_target = (
+            14
+            - self.declarer_target
+        )
+
+    # =====================================================
     # HAND DISPLAY ORDER
     # =====================================================
 
     def update_seat_trump(self):
 
-        """Keep each seat's hand ordered around the current trump suit.
-
-        The seats are only built once, so a later game with a different
-        contract has to have its trump pushed onto the existing seats.
-        """
+        """Keep each seat's hand ordered around the current trump suit."""
 
         for seat in self.player_seats.values():
 
@@ -506,13 +867,7 @@ class PlayPage(QWidget):
 
     def update_seat_visibility(self):
 
-        """Keep each seat's hidden flag in sync with the current
-        lesson (or the lack of one).
-
-        Seats are only built once, so switching between a normal
-        game and a lesson -- or between lessons with different
-        user seats -- has to be pushed onto the existing seats.
-        """
+        """Keep each seat's hidden flag in sync with the current lesson."""
 
         for position, seat in self.player_seats.items():
 
@@ -573,23 +928,37 @@ class PlayPage(QWidget):
             )
         )
 
-        # Store the exact doubling state as additional
-        # game information.
-
         self.game_record.doubling_state = (
             self.doubling_state
         )
-
-        # Keep the backwards-compatible boolean
-        # synchronized with the exact doubling state.
 
         self.game_record.doubled = (
             self.doubling_state
             == SpecialCall.DOUBLE
         )
 
-        # Notify persistence of the updated
-        # doubling state.
+        # =================================================
+        # INITIAL RESUME STATE
+        # =================================================
+        #
+        # Do not assign vulnerability here.
+        # GameRecord.vulnerability is a read-only property.
+
+        self.game_record.current_played_cards = dict(
+            self.played_cards
+        )
+
+        self.game_record.current_player = (
+            self.current_player
+        )
+
+        self.game_record.current_trick_number = (
+            self.trick_number
+        )
+
+        self.game_record.current_trick_winner = (
+            self.trick_winner
+        )
 
         self.game_record._notify_change()
 
@@ -674,9 +1043,9 @@ class PlayPage(QWidget):
 
         self.trump = None
 
-        # =================================================
-        # RESET SCORE DISPLAY REFERENCES
-        # =================================================
+        self.declarer_target = None
+
+        self.defence_target = None
 
         self.declarer_score = None
 
@@ -687,10 +1056,6 @@ class PlayPage(QWidget):
         self.defence_needed = None
 
         self.game_loaded = False
-
-        # =================================================
-        # RESET UNDO
-        # =================================================
 
         if self.undo_button is not None:
 
@@ -756,7 +1121,7 @@ class PlayPage(QWidget):
                 self.lesson_state.current_player
             )
 
-        else:
+        elif self.current_player is None:
 
             self.current_player = (
                 self.get_leader()
@@ -1244,15 +1609,9 @@ class PlayPage(QWidget):
         # VALIDATE PLAY
         # =================================================
 
-        # A lesson still has to obey the normal follow-suit rules --
-        # Sonia was clear it's the script *and* the rules, not the
-        # script instead of the rules.
-
         led_suit = determine_led_suit(
             self.played_cards
         )
-
-        # First validate normal Bridge rules.
 
         play_is_valid = is_valid_play(
             player.hand,
@@ -1278,8 +1637,9 @@ class PlayPage(QWidget):
 
             return
 
-        # In a lesson, the card must ALSO match
-        # the prescribed tutorial script.
+        # =================================================
+        # LESSON VALIDATION
+        # =================================================
 
         if self.lesson_state is not None:
 
@@ -1292,9 +1652,6 @@ class PlayPage(QWidget):
 
             if not script_is_valid:
 
-                # The learner chose a legal Bridge card,
-                # but not the prescribed lesson card.
-                # Reveal the hint only after this attempt.
                 self.show_lesson_hint = True
 
                 seat = self.player_seats.get(
@@ -1315,8 +1672,6 @@ class PlayPage(QWidget):
 
                 return
 
-        # A correct play completes this decision.
-        # Hide the hint again for the next user turn.
         self.show_lesson_hint = False
 
         print(
@@ -1381,9 +1736,6 @@ class PlayPage(QWidget):
                 f"{self.position_name(self.trick_winner)}"
             )
 
-            # Lessons are practice, not a game -- there is no
-            # GameRecord to save the trick into.
-
             if self.lesson_state is None:
 
                 self.save_current_trick()
@@ -1395,7 +1747,7 @@ class PlayPage(QWidget):
             self.update_score_display()
 
             # =================================================
-            # TRICK 13 -- OR, IN A LESSON, THE SCRIPT'S LAST PLAY
+            # TRICK 13 / LESSON END
             # =================================================
 
             lesson_finished = (
@@ -1406,10 +1758,6 @@ class PlayPage(QWidget):
             if self.trick_number >= 13 or lesson_finished:
 
                 self.game_complete = True
-
-                # =================================================
-                # CALCULATE FINAL SCORE
-                # =================================================
 
                 if self.game_record is not None:
 
@@ -1451,6 +1799,7 @@ class PlayPage(QWidget):
                     lesson_finished
                     and self.game_complete_label is not None
                 ):
+
                     ending_text = (
                         str(self.lesson_ending)
                         if self.lesson_ending
@@ -1470,6 +1819,7 @@ class PlayPage(QWidget):
                     )
 
                 elif self.game_complete_label is not None:
+
                     self.game_complete_label.setText(
                         "GAME COMPLETE\n\n"
                         "All 13 tricks have been played.\n"
@@ -1488,13 +1838,21 @@ class PlayPage(QWidget):
 
                 self.update_undo_button()
 
-                # =================================================
-                # SHOW FINAL GAME RESULT POPUP
-                # =================================================
-
                 self.show_game_complete_popup()
 
                 return
+
+            # =================================================
+            # PERSIST COMPLETED TRICK STATE
+            # =================================================
+            #
+            # The completed trick is already stored in the
+            # GameRecord. Persist the temporary four-card display
+            # state as well, so that if the application closes
+            # during the 2-second pause we can safely move to the
+            # next trick on resume.
+
+            self.persist_resume_state()
 
             # =================================================
             # KEEP TRICK VISIBLE FOR 2 SECONDS
@@ -1526,9 +1884,9 @@ class PlayPage(QWidget):
 
             return
 
-        # =================================================
+        # =====================================================
         # MOVE TO NEXT PLAYER
-        # =================================================
+        # =====================================================
 
         if self.lesson_state is not None:
 
@@ -1543,6 +1901,15 @@ class PlayPage(QWidget):
                     self.current_player
                 )
             )
+
+        # =====================================================
+        # PERSIST PARTIAL TRICK
+        # =====================================================
+        #
+        # This is what allows a game with 1, 2, or 3 cards in
+        # the current trick to be resumed after reopening.
+
+        self.persist_resume_state()
 
         self.maybe_auto_play_computer_card()
 
@@ -1561,10 +1928,6 @@ class PlayPage(QWidget):
     def undo_last_play(
         self,
     ):
-
-        # Undo has no concept of a lesson's script -- rewinding a
-        # play here without rewinding LessonState too would desync
-        # the two, so undo is simply unavailable during a lesson.
 
         if self.lesson_state is not None:
 
@@ -1631,6 +1994,12 @@ class PlayPage(QWidget):
         ):
 
             seat.rebuild_hand()
+
+        # =================================================
+        # PERSIST UNDO STATE
+        # =================================================
+
+        self.persist_resume_state()
 
         self.update_trick_area()
 
@@ -1785,29 +2154,17 @@ class PlayPage(QWidget):
             10
         )
 
-        # =================================================
-        # CONTRACT
-        # =================================================
-
         self.add_result_row(
             details_layout,
             "CONTRACT",
             self.contract_text(),
         )
 
-        # =================================================
-        # TRUMP
-        # =================================================
-
         self.add_result_row(
             details_layout,
             "TRUMP",
             self.trump_name(),
         )
-
-        # =================================================
-        # DECLARER
-        # =================================================
 
         self.add_result_row(
             details_layout,
@@ -1817,29 +2174,17 @@ class PlayPage(QWidget):
             ),
         )
 
-        # =================================================
-        # DOUBLING
-        # =================================================
-
         self.add_result_row(
             details_layout,
             "DOUBLING",
             self.doubling_text(),
         )
 
-        # =================================================
-        # VULNERABILITY
-        # =================================================
-
         self.add_result_row(
             details_layout,
             "VULNERABILITY",
             self.vulnerability_text(),
         )
-
-        # =================================================
-        # TRICKS REQUIRED
-        # =================================================
 
         tricks_required = (
             self.game_record.tricks_required
@@ -1855,10 +2200,6 @@ class PlayPage(QWidget):
             ),
         )
 
-        # =================================================
-        # DECLARER TRICKS
-        # =================================================
-
         self.add_result_row(
             details_layout,
             "DECLARER TRICKS",
@@ -1866,10 +2207,6 @@ class PlayPage(QWidget):
                 self.game_record.declarer_tricks
             ),
         )
-
-        # =================================================
-        # OUTCOME
-        # =================================================
 
         self.add_result_row(
             details_layout,
@@ -1884,13 +2221,6 @@ class PlayPage(QWidget):
         # =================================================
         # BBO MAKEABLE TRICKS
         # =================================================
-
-        # BBO provides a reference table showing how many
-        # tricks can be made by each player in each
-        # denomination.
-        #
-        # This table is shown only for BBO examples.
-        # It is not calculated by BridgeTut.
 
         if self.makeable_tricks is not None:
 
@@ -1939,10 +2269,6 @@ class PlayPage(QWidget):
             self.game_record.final_score
         )
 
-        # -------------------------------------------------
-        # SCORE
-        # -------------------------------------------------
-
         if final_score is None:
 
             ns_text = "—"
@@ -1951,12 +2277,7 @@ class PlayPage(QWidget):
 
         else:
 
-            # GameRecord stores the final score
-            # from the North-South perspective.
-
             ns_score = final_score
-
-            # East-West receives the opposite score.
 
             ew_score = -final_score
 
@@ -1971,10 +2292,6 @@ class PlayPage(QWidget):
                 if ew_score > 0
                 else str(ew_score)
             )
-
-        # =================================================
-        # NORTH-SOUTH SCORE
-        # =================================================
 
         ns_score_label = QLabel(
             f"North / South: {ns_text}"
@@ -1991,10 +2308,6 @@ class PlayPage(QWidget):
         score_layout.addWidget(
             ns_score_label
         )
-
-        # =================================================
-        # EAST-WEST SCORE
-        # =================================================
 
         ew_score_label = QLabel(
             f"East / West: {ew_text}"
@@ -2187,10 +2500,6 @@ class PlayPage(QWidget):
             8
         )
 
-        # =================================================
-        # TITLE
-        # =================================================
-
         title = QLabel(
             "BBO MAKEABLE TRICKS"
         )
@@ -2206,10 +2515,6 @@ class PlayPage(QWidget):
         layout.addWidget(
             title
         )
-
-        # =================================================
-        # TABLE
-        # =================================================
 
         table = QGridLayout()
 
@@ -2235,10 +2540,6 @@ class PlayPage(QWidget):
             Denomination.SPADES,
             Denomination.NO_TRUMP,
         )
-
-        # =================================================
-        # HEADER
-        # =================================================
 
         headers = {
             Denomination.CLUBS: "♣",
@@ -2278,10 +2579,6 @@ class PlayPage(QWidget):
                 0,
                 column,
             )
-
-        # =================================================
-        # PLAYER ROWS
-        # =================================================
 
         positions = (
             Position.NORTH,
@@ -2348,8 +2645,6 @@ class PlayPage(QWidget):
                     row,
                     column,
                 )
-
-        # Make the position column slightly wider.
 
         table.setColumnMinimumWidth(
             0,
@@ -2475,17 +2770,11 @@ class PlayPage(QWidget):
 
     def vulnerability_text(self):
 
-        # BBO games carry vulnerability directly from the
-        # BBO hand record.
-
         if self.vulnerability is not None:
 
             return str(
                 self.vulnerability
             )
-
-        # Normal games continue to derive vulnerability
-        # from their board number.
 
         return str(
             determine_vulnerability(
@@ -2499,14 +2788,9 @@ class PlayPage(QWidget):
 
     def update_playable_cards(self):
 
-        # Clear highlighting from every player first.
-
         for seat in self.player_seats.values():
 
             seat.clear_playable_cards()
-
-        # Nothing should be highlighted when the game
-        # has finished.
 
         if self.game_complete:
 
@@ -2520,8 +2804,6 @@ class PlayPage(QWidget):
 
             return
 
-        # Get the current player's actual hand.
-
         player = self.players[
             self.current_player
         ]
@@ -2529,10 +2811,6 @@ class PlayPage(QWidget):
         playable_cards = []
 
         if self.lesson_state is not None:
-
-            # Do not reveal the prescribed answer immediately.
-            # The hint appears only after the learner has made
-            # a legal but incorrect scripted choice.
 
             if (
                 self.show_lesson_hint
@@ -2546,13 +2824,9 @@ class PlayPage(QWidget):
 
         else:
 
-            # Determine the suit that was led.
-
             led_suit = determine_led_suit(
                 self.played_cards
             )
-
-            # Use the existing backend validation logic.
 
             for card in player.hand.sorted_by_suit():
 
@@ -2565,8 +2839,6 @@ class PlayPage(QWidget):
                     playable_cards.append(
                         card
                     )
-
-        # Apply the gold rim only to legal cards.
 
         seat = self.player_seats.get(
             self.current_player
@@ -2627,11 +2899,6 @@ class PlayPage(QWidget):
 
         self.trick_timer = None
 
-        # =================================================
-        # THE WINNER OF THE PREVIOUS TRICK LEADS
-        # THE NEXT TRICK
-        # =================================================
-
         if self.trick_winner is None:
 
             print(
@@ -2644,11 +2911,6 @@ class PlayPage(QWidget):
             self.trick_winner
         )
 
-        # In a lesson, the script is the single source of truth
-        # for whose turn it is -- it should already agree with the
-        # trick winner above, but this keeps the two from ever
-        # drifting apart.
-
         if self.lesson_state is not None:
 
             self.current_player = (
@@ -2657,13 +2919,15 @@ class PlayPage(QWidget):
 
         self.trick_winner = None
 
-        # =================================================
-        # CLEAR PREVIOUS TRICK
-        # =================================================
-
         self.played_cards = {}
 
         self.trick_number += 1
+
+        # =================================================
+        # PERSIST NEW TRICK STATE
+        # =================================================
+
+        self.persist_resume_state()
 
         self.update_trick_area()
 
@@ -2779,10 +3043,13 @@ class PlayPage(QWidget):
             if self.game_complete:
 
                 if self.lesson_state is not None:
+
                     self.trick_value.setText(
                         f"{self.trick_number} tricks"
                     )
+
                 else:
+
                     self.trick_value.setText(
                         "13 / 13"
                     )
@@ -2814,6 +3081,8 @@ class PlayPage(QWidget):
 
             return
 
+        self.set_score_targets()
+
         declarer_tricks = (
             self.game_record.declarer_tricks
         )
@@ -2822,65 +3091,17 @@ class PlayPage(QWidget):
             self.game_record.defence_tricks
         )
 
-        # =================================================
-        # REMAINING TRICKS
-        # =================================================
-
-        tricks_played = (
-            declarer_tricks
-            + defence_tricks
+        declarer_needed = (
+            self.declarer_target
+            if self.declarer_target is not None
+            else 0
         )
 
-        remaining_tricks = max(
-            0,
-            13 - tricks_played,
+        defence_needed = (
+            self.defence_target
+            if self.defence_target is not None
+            else 0
         )
-
-        # =================================================
-        # CONTRACT REQUIREMENT
-        # =================================================
-
-        if self.contract is not None:
-
-            contract_required = (
-                self.contract.level
-                + 6
-            )
-
-        else:
-
-            contract_required = 0
-
-        # =================================================
-        # DECLARER
-        # =================================================
-
-        declarer_needed = max(
-            0,
-            contract_required
-            - declarer_tricks,
-        )
-
-        # =================================================
-        # DEFENCE
-        # =================================================
-
-        if remaining_tricks > 0:
-
-            defence_needed = max(
-                0,
-                remaining_tricks
-                - declarer_needed
-                + 1,
-            )
-
-        else:
-
-            defence_needed = 0
-
-        # =================================================
-        # UPDATE DECLARER
-        # =================================================
 
         if self.declarer_score is not None:
 
@@ -2895,10 +3116,6 @@ class PlayPage(QWidget):
             self.declarer_needed.setText(
                 f"{declarer_needed} tricks needed"
             )
-
-        # =================================================
-        # UPDATE DEFENCE
-        # =================================================
 
         if self.defence_score is not None:
 
@@ -2945,17 +3162,9 @@ class PlayPage(QWidget):
             self.contract.denomination
         )
 
-        # =================================================
-        # NO TRUMP
-        # =================================================
-
         if denomination == Denomination.NO_TRUMP:
 
             return None
-
-        # =================================================
-        # DENOMINATION -> SUIT
-        # =================================================
 
         denomination_map = {
             Denomination.CLUBS: Suit.CLUBS,
@@ -3069,7 +3278,9 @@ class PlayPage(QWidget):
             )
 
         if self.game_complete:
+
             if self.lesson_state is not None:
+
                 ending_text = (
                     str(self.lesson_ending)
                     if self.lesson_ending
@@ -3084,6 +3295,7 @@ class PlayPage(QWidget):
                 )
 
             else:
+
                 status = (
                     "> 13 tricks completed.\n\n"
                     "> Complete game saved to history.\n\n"
@@ -3091,13 +3303,17 @@ class PlayPage(QWidget):
                 )
 
         else:
+
             if self.lesson_state is not None:
+
                 status = (
                     f"> Current turn: "
                     f"{current_letter}.\n\n"
                     f"Practice lesson in progress."
                 )
+
             else:
+
                 status = (
                     f"> Current turn: "
                     f"{current_letter}.\n\n"
@@ -3197,12 +3413,7 @@ class PlayPage(QWidget):
     def maybe_auto_play_computer_card(self):
 
         """If it's a computer seat's turn in a lesson, play its
-        scripted card after a short delay.
-
-        Must only be called once played_cards reflects the trick
-        currently in progress -- not while a completed trick is
-        still being held on screen for the 2-second pause.
-        """
+        scripted card after a short delay."""
 
         if self.lesson_state is None:
 
@@ -3496,9 +3707,6 @@ class PlayPage(QWidget):
             Qt.AlignCenter
         )
 
-        # This is the DISPLAY LABEL only.
-        # The actual backend trump is self.trump_suit.
-
         self.trump = QLabel(
             "NT"
         )
@@ -3637,10 +3845,6 @@ class PlayPage(QWidget):
         needed_label.setObjectName(
             "needed"
         )
-
-        # =================================================
-        # STORE LABEL REFERENCES
-        # =================================================
 
         if score_key is not None:
 
@@ -3792,10 +3996,6 @@ class PlayPage(QWidget):
             font-size: 14px;
             font-weight: bold;
         }
-
-        /* =================================================
-           UNDO ICON
-        ================================================= */
 
         QPushButton#undoButton {
             background-color: #00582b;
