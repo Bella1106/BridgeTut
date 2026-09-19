@@ -1,3 +1,7 @@
+import tempfile
+import unittest
+from pathlib import Path
+
 import pytest
 
 from PySide6.QtWidgets import QApplication, QLabel
@@ -5,10 +9,14 @@ from PySide6.QtWidgets import QApplication, QLabel
 from gui.main_window import MainWindow
 from gui.bidding_page import BiddingPage
 from gui.play_page import PlayPage
+from gui.history_page import HistoryPage
 from gui.widgets.card_widget import CardWidget
 from gui.widgets.player_seat import PlayerSeat
 
 from card_model.player import Position
+from card_model.deck import new_deal
+
+from game_history.history_manager import HistoryManager
 
 
 # =========================================================
@@ -39,12 +47,29 @@ def app():
 def main_window(app):
     """
     Create a fresh MainWindow for each test.
+
+    The application's real history.pkl file is replaced with
+    a temporary history file so GUI tests cannot load or
+    modify real saved games.
     """
+
+    temp_directory = tempfile.TemporaryDirectory()
+
+    original_history_file = HistoryManager.HISTORY_FILE
+
+    HistoryManager.HISTORY_FILE = (
+        Path(temp_directory.name) / "history.pkl"
+    )
+
     window = MainWindow()
 
     yield window
 
     window.close()
+
+    HistoryManager.HISTORY_FILE = original_history_file
+
+    temp_directory.cleanup()
 
 
 # =========================================================
@@ -66,27 +91,51 @@ def test_main_window_launches(main_window):
 
 def test_main_window_has_page_stack(main_window):
     """
-    Test that the main window contains the stacked page
-    navigation used by the application.
+    Test that the main window contains all current
+    application pages.
+
+    Current pages:
+
+        1. Home
+        2. Bidding
+        3. Play
+        4. History
     """
 
     assert main_window.pages is not None
 
-    assert main_window.pages.count() >= 6
+    assert main_window.pages.count() == 4
+
+    assert main_window.pages.widget(0) == (
+        main_window.home_page
+    )
+
+    assert main_window.pages.widget(1) == (
+        main_window.bidding_page
+    )
+
+    assert main_window.pages.widget(2) == (
+        main_window.play_page
+    )
+
+    assert main_window.pages.widget(3) == (
+        main_window.history_page
+    )
 
 
 def test_navigation_buttons_exist(main_window):
     """
-    Test that all main navigation buttons are present.
+    Test that all current main navigation buttons are present.
     """
 
     expected_buttons = [
         "Home",
         "Bidding",
         "Play",
-        "Results",
         "History",
     ]
+
+    assert len(main_window.nav_buttons) == 4
 
     for name in expected_buttons:
 
@@ -157,21 +206,6 @@ def test_can_navigate_to_history(main_window):
     assert main_window.page_title.text() == "History"
 
 
-def test_can_navigate_to_results(main_window):
-    """
-    Test that the Results page can be selected.
-    """
-
-    main_window.navigate("Results")
-
-    assert (
-        main_window.pages.currentWidget()
-        == main_window.results_page
-    )
-
-    assert main_window.page_title.text() == "Results"
-
-
 def test_invalid_navigation_does_nothing(main_window):
     """
     Invalid page names should not change the current page.
@@ -183,9 +217,62 @@ def test_invalid_navigation_does_nothing(main_window):
 
     main_window.navigate("NotARealPage")
 
-    assert main_window.pages.currentWidget() == current_page
+    assert (
+        main_window.pages.currentWidget()
+        == current_page
+    )
 
     assert main_window.page_title.text() == "Home"
+
+
+def test_navigation_through_all_pages(main_window):
+    """
+    Test that all current application pages can be reached.
+    """
+
+    pages = [
+        ("Home", main_window.home_page),
+        ("Bidding", main_window.bidding_page),
+        ("Play", main_window.play_page),
+        ("History", main_window.history_page),
+    ]
+
+    for page_name, expected_page in pages:
+
+        main_window.navigate(page_name)
+
+        assert (
+            main_window.pages.currentWidget()
+            == expected_page
+        )
+
+        assert (
+            main_window.page_title.text()
+            == page_name
+        )
+
+
+# =========================================================
+# PAGE OBJECTS
+# =========================================================
+
+def test_history_page_can_be_created(main_window):
+    """
+    Test that the HistoryPage exists and is connected to
+    the application's history manager.
+    """
+
+    assert main_window.history_page is not None
+
+    assert isinstance(
+        main_window.history_page,
+        HistoryPage,
+    )
+
+    assert (
+        main_window.history_page.history_manager
+        == main_window.history_manager
+    )
 
 
 # =========================================================
@@ -224,7 +311,7 @@ def test_bidding_page_has_players(app):
 
 def test_bidding_page_has_bidding_system(app):
     """
-    The GUI should contain an existing BiddingSystem
+    The GUI should contain the existing BiddingSystem
     rather than implementing a separate bidding engine.
     """
 
@@ -292,7 +379,7 @@ def test_play_page_initial_state(app):
 def test_card_widget_can_be_created(app):
     """
     Use a card from the GUI's own generated deal so that
-    this test does not depend on guessing Alonso's Card
+    this test does not depend on guessing the Card
     constructor.
 
     Hand does not support direct indexing, so the first
@@ -432,8 +519,6 @@ def test_player_seat_displays_player_position(app):
         role="Dealer",
     )
 
-    # PlayerSeat uses QLabel widgets for the position,
-    # role and card count.
     labels = seat.findChildren(QLabel)
 
     texts = [
@@ -541,6 +626,229 @@ def test_new_game_resets_play_page(main_window):
 
     assert main_window.play_page.game_complete is False
 
-    assert main_window.pages.currentWidget() == (
-        main_window.bidding_page
+    assert (
+        main_window.pages.currentWidget()
+        == main_window.bidding_page
     )
+
+
+# =========================================================
+# RESUME GAME
+# =========================================================
+
+def test_has_unfinished_game_returns_false_when_history_empty(
+    main_window,
+):
+    """
+    A new application with no history should not report
+    an unfinished game.
+    """
+
+    assert main_window.history_manager.games == []
+
+    assert main_window.has_unfinished_game() is False
+
+
+def test_has_unfinished_game_returns_true_for_incomplete_game(
+    main_window,
+):
+    """
+    An incomplete latest game should be detected as resumable.
+
+    GameRecord.is_complete is a read-only property. A game is
+    incomplete when it contains fewer than 13 completed tricks.
+    """
+
+    game = main_window.history_manager.add_game(
+        dealer=Position.SOUTH,
+        players=[],
+    )
+
+    assert game.is_complete is False
+
+    assert main_window.has_unfinished_game() is True
+
+
+def test_has_unfinished_game_returns_false_for_completed_game(
+    main_window,
+):
+    """
+    A completed latest game should not be reported as
+    resumable.
+    """
+
+    game = main_window.history_manager.add_game(
+        dealer=Position.SOUTH,
+        players=[],
+    )
+
+    for number in range(1, 14):
+
+        game.add_trick(
+            trick_number=number,
+            plays={},
+        )
+
+    assert game.is_complete is True
+
+    assert main_window.has_unfinished_game() is False
+
+
+# =========================================================
+# REPLAY / PLAY THIS DEAL
+# =========================================================
+
+def create_test_game(main_window, dealer, board_number):
+    """
+    Create a valid historical game containing a complete
+    52-card deal.
+
+    This prevents HistoryPage from encountering an invalid
+    empty player set while displaying the test game.
+    """
+
+    players = new_deal(
+        dealer=dealer,
+        seed=42,
+    )
+
+    game = main_window.history_manager.add_game(
+        dealer=dealer,
+        players=players,
+        board_number=board_number,
+    )
+
+    return game
+
+
+def test_play_existing_deal_navigates_to_bidding(
+    main_window,
+):
+    """
+    Selecting Play This Deal should start the selected deal
+    from the Bidding page.
+    """
+
+    game = create_test_game(
+        main_window,
+        dealer=Position.SOUTH,
+        board_number=5,
+    )
+
+    main_window.play_existing_deal(game)
+
+    assert (
+        main_window.pages.currentWidget()
+        == main_window.bidding_page
+    )
+
+    assert main_window.page_title.text() == "Bidding"
+
+
+def test_play_existing_deal_preserves_dealer(
+    main_window,
+):
+    """
+    Replay should use the historical game's dealer.
+    """
+
+    game = create_test_game(
+        main_window,
+        dealer=Position.WEST,
+        board_number=7,
+    )
+
+    main_window.play_existing_deal(game)
+
+    assert (
+        main_window.bidding_page.dealer
+        == Position.WEST
+    )
+
+
+def test_play_existing_deal_preserves_board_number(
+    main_window,
+):
+    """
+    Replay should use the historical board number.
+    """
+
+    game = create_test_game(
+        main_window,
+        dealer=Position.NORTH,
+        board_number=12,
+    )
+
+    main_window.play_existing_deal(game)
+
+    assert (
+        main_window.bidding_page.board_number
+        == 12
+    )
+
+
+def test_play_existing_deal_does_not_set_play_data(
+    main_window,
+):
+    """
+    Replay starts a fresh bidding/play session rather than
+    resuming the old game state.
+    """
+
+    game = create_test_game(
+        main_window,
+        dealer=Position.EAST,
+        board_number=3,
+    )
+
+    main_window.play_data = {
+        "old": "data"
+    }
+
+    main_window.play_existing_deal(game)
+
+    assert main_window.play_data is None
+
+
+# =========================================================
+# HISTORY
+# =========================================================
+
+def test_history_page_uses_play_deal_callback(
+    main_window,
+):
+    """
+    The HistoryPage should have a callback available for
+    starting a replay of an existing deal.
+    """
+
+    assert main_window.history_page is not None
+
+    assert (
+        main_window.history_page.play_deal_callback
+        is not None
+    )
+
+
+# =========================================================
+# MAIN WINDOW GAME STATE
+# =========================================================
+
+def test_main_window_starts_with_valid_dealer(
+    main_window,
+):
+    """
+    MainWindow should have a valid initial dealer.
+    """
+
+    assert main_window.current_dealer == Position.SOUTH
+
+
+def test_main_window_starts_with_board_one(
+    main_window,
+):
+    """
+    The first board should be board 1.
+    """
+
+    assert main_window.board_number == 1
