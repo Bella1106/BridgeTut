@@ -426,7 +426,7 @@ def test_parse_real_sponsor_bid_and_play_file():
 
     assert second.dealer == Position.SOUTH
     assert second.vulnerability == Vulnerability.BOTH
-    assert len(second.auction) == 16
+    assert len(second.auction) == 17
     assert len(second.raw_play_lines) == 8
     assert second.ending == "Claim"
 
@@ -438,7 +438,7 @@ def test_parse_real_sponsor_bid_and_play_file():
     )
 
     assert second.auction[-1] == (
-        Position.EAST,
+        Position.SOUTH,
         Bid(
             6,
             Denomination.SPADES,

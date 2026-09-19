@@ -19,7 +19,7 @@ The game is NOT saved to HistoryManager here.
 The game is saved by PlayPage.
 """
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QFrame,
+    QMessageBox,
 )
 
 from bidding.bid import Bid, Denomination
@@ -35,16 +36,13 @@ from bidding.bidding_system import (
     BiddingSystem,
     SpecialCall,
 )
-
-from card_model.deck import new_deal
+from card_model.deck import new_deal, deal_from
 from card_model.player import Position
-
 from contract.contract import determine_contract
-
 from game_logic.vulnerability import determine_vulnerability
+from game_logic.guided_bidding import GuidedBiddingState
 
 from .widgets.player_seat import PlayerSeat
-
 
 # =========================================================
 # DISPLAY-ONLY DENOMINATION HELPERS
@@ -81,20 +79,46 @@ POSITIONS_IN_ORDER = [
 
 
 class BiddingPage(QWidget):
+    guided_auction_finished = Signal(object)
 
     def __init__(
         self,
         dealer=Position.SOUTH,
         board_number=1,
+        guided_bidding_state: GuidedBiddingState | None = None,
+        tutorial_lesson_data=None,
+        bbo_game_data=None,
         parent=None,
     ):
         super().__init__(parent)
 
         # =================================================
+        # GUIDED BIDDING / MODE 1
+        # =================================================
+
+        self.guided_bidding_state = guided_bidding_state
+        self.tutorial_lesson_data = tutorial_lesson_data
+
+        # BBO data is supplied when this page is being used
+        # for a BBO tutorial example.
+        self.bbo_game_data = bbo_game_data
+
+        # =================================================
         # DEALER
         # =================================================
 
-        self.dealer = dealer
+        if self.bbo_game_data is not None:
+            self.dealer = (
+                self.bbo_game_data.dealer
+            )
+
+        elif self.tutorial_lesson_data is not None:
+            self.dealer = (
+                self.tutorial_lesson_data.dealer
+            )
+
+        else:
+            self.dealer = dealer
 
         # =================================================
         # BOARD
@@ -102,25 +126,63 @@ class BiddingPage(QWidget):
 
         self.board_number = board_number
 
-        self.vulnerability = determine_vulnerability(
-            board_number
-        )
+        # =================================================
+        # VULNERABILITY
+        # =================================================
+
+        if self.bbo_game_data is not None:
+            self.vulnerability = (
+                self.bbo_game_data.vulnerability
+            )
+
+        elif self.tutorial_lesson_data is not None:
+            self.vulnerability = (
+                self.tutorial_lesson_data.vulnerability
+            )
+
+        else:
+            self.vulnerability = determine_vulnerability(
+                board_number
+            )
 
         # =================================================
         # DEAL
         # =================================================
 
-        self.players = new_deal(
-            dealer=self.dealer,
-        )
+        if self.bbo_game_data is not None:
+            # BBO examples use the exact hands from
+            # the parsed BBO file.
+            self.players = deal_from(
+                self.bbo_game_data.hands
+            )
+
+        elif self.tutorial_lesson_data is not None:
+            # Guided tutorials use their fixed hands.
+            self.players = deal_from(
+                self.tutorial_lesson_data.hands
+            )
+
+        else:
+            # Normal games use a new random deal.
+            self.players = new_deal(
+                dealer=self.dealer,
+            )
 
         # =================================================
         # BIDDING SYSTEM
         # =================================================
 
-        self.bidding_system = BiddingSystem(
-            self.dealer
-        )
+        # BBO examples are NOT guided bidding.
+        # They use the normal BiddingSystem so that the
+        # user performs the auction themselves.
+        if self.guided_bidding_state is not None:
+            self.bidding_system = (
+                self.guided_bidding_state.bidding_system
+            )
+        else:
+            self.bidding_system = BiddingSystem(
+                self.dealer
+            )
 
         # =================================================
         # UI REFERENCES
@@ -158,6 +220,9 @@ class BiddingPage(QWidget):
         # =================================================
 
         self.setup_ui()
+
+        if self.guided_bidding_state is not None:
+            self.advance_guided_bidding()
 
         self.update_bidding_ui()
 
@@ -566,8 +631,11 @@ class BiddingPage(QWidget):
                 )
 
                 button.clicked.connect(
-                    lambda checked=False, selected_bid=bid:
-                    self.on_bid_clicked(selected_bid)
+                    lambda checked=False,
+                    selected_bid=bid:
+                    self.on_bid_clicked(
+                        selected_bid
+                    )
                 )
 
                 row.addWidget(
@@ -1166,6 +1234,116 @@ class BiddingPage(QWidget):
         )
 
     # =====================================================
+    # GUIDED BIDDING FEEDBACK
+    # =====================================================
+
+    def show_guided_bidding_mistake(
+        self,
+    ):
+
+        message_box = QMessageBox(
+            self
+        )
+
+        message_box.setWindowTitle(
+            "Try Again"
+        )
+
+        message_box.setIcon(
+            QMessageBox.Information
+        )
+
+        message_box.setText(
+            "That isn't the prescribed call for this lesson."
+        )
+
+        message_box.setInformativeText(
+            "Have another look at your hand and try again."
+        )
+
+        message_box.setStandardButtons(
+            QMessageBox.Ok
+        )
+
+        # QMessageBox uses the operating system's light background,
+        # so override BridgeTut's global light-label styling here.
+        message_box.setStyleSheet(
+            """
+            QMessageBox {
+                background-color: #11271d;
+            }
+
+            QMessageBox QLabel {
+                color: #f1f4f2;
+                font-size: 13px;
+                #min-width: 360px;
+            }
+
+            QMessageBox QPushButton {
+                min-width: 70px;
+                min-height: 28px;
+                color: #071710;
+                background-color: ##51b5ba;
+                border: none;
+                border-radius: 6px;
+                font-size: 13px;
+                font-weight: bold;;
+            }
+
+            QMessageBox QPushButton:hover {
+                background-color: #68c4c8;
+            }
+
+            QMessageBox QPushButton:pressed {
+                background-color: #3f9da2;
+            }
+            """
+        )
+
+        message_box.exec()
+
+    # =====================================================
+    # GUIDED BIDDING
+    # =====================================================
+
+    def advance_guided_bidding(
+        self,
+    ):
+        if self.guided_bidding_state is None:
+            return
+
+        if self.guided_bidding_state.is_complete():
+            self.finish_guided_auction()
+            return
+
+        self.guided_bidding_state.play_computer_calls()
+
+        self.update_bidding_ui()
+
+        if self.guided_bidding_state.is_complete():
+            self.finish_guided_auction()
+
+    def finish_guided_auction(self):
+        if self.guided_bidding_state is None:
+            return
+
+        if not self.guided_bidding_state.is_complete():
+            return
+
+        if self.tutorial_lesson_data is None:
+            return
+
+        if self.auction_completed:
+            return
+
+        self.auction_completed = True
+        self.update_bidding_ui()
+
+        self.guided_auction_finished.emit(
+            self.tutorial_lesson_data
+        )
+
+    # =====================================================
     # BID CLICK
     # =====================================================
 
@@ -1176,6 +1354,21 @@ class BiddingPage(QWidget):
 
         if self.auction_completed:
 
+            return
+
+        if self.guided_bidding_state is not None:
+            accepted = (
+                self.guided_bidding_state.attempt_call(
+                    Position.SOUTH,
+                    bid
+                )
+            )
+
+            if not accepted:
+                self.show_guided_bidding_mistake()
+                return
+
+            self.advance_guided_bidding()
             return
 
         player = (
@@ -1209,6 +1402,21 @@ class BiddingPage(QWidget):
 
             return
 
+        if self.guided_bidding_state is not None:
+            accepted = (
+                self.guided_bidding_state.attempt_call(
+                    Position.SOUTH,
+                    None
+                )
+            )
+
+            if not accepted:
+                self.show_guided_bidding_mistake()
+                return
+
+            self.advance_guided_bidding()
+            return
+
         player = (
             self.bidding_system.current_player
         )
@@ -1239,6 +1447,21 @@ class BiddingPage(QWidget):
 
             return
 
+        if self.guided_bidding_state is not None:
+            accepted = (
+                self.guided_bidding_state.attempt_call(
+                    Position.SOUTH,
+                    SpecialCall.DOUBLE
+                )
+            )
+
+            if not accepted:
+                self.show_guided_bidding_mistake()
+                return
+
+            self.advance_guided_bidding()
+            return
+
         player = (
             self.bidding_system.current_player
         )
@@ -1267,6 +1490,21 @@ class BiddingPage(QWidget):
 
         if self.auction_completed:
 
+            return
+
+        if self.guided_bidding_state is not None:
+            accepted = (
+                self.guided_bidding_state.attempt_call(
+                    Position.SOUTH,
+                    SpecialCall.REDOUBLE
+                )
+            )
+
+            if not accepted:
+                self.show_guided_bidding_mistake()
+                return
+
+            self.advance_guided_bidding()
             return
 
         player = (
@@ -1302,6 +1540,14 @@ class BiddingPage(QWidget):
         highest_bid = (
             self.bidding_system.highest_bid
         )
+
+        if self.guided_bidding_state is not None:
+            user_can_call = (
+                self.guided_bidding_state.is_user_turn()
+                and not self.guided_bidding_state.is_complete()
+            )
+        else:
+            user_can_call = True
 
         self.info_values[
             "to_call"
@@ -1359,6 +1605,7 @@ class BiddingPage(QWidget):
 
             button.setEnabled(
                 legal
+                and user_can_call
                 and not self.bidding_system.auction_finished
                 and not self.auction_completed
             )
@@ -1368,7 +1615,8 @@ class BiddingPage(QWidget):
         # =================================================
 
         self.pass_button.setEnabled(
-            not self.bidding_system.auction_finished
+            user_can_call
+            and not self.bidding_system.auction_finished
             and not self.auction_completed
         )
 
@@ -1377,7 +1625,8 @@ class BiddingPage(QWidget):
         # =================================================
 
         self.double_button.setEnabled(
-            self.bidding_system.can_double(
+            user_can_call
+            and self.bidding_system.can_double(
                 current_player
             )
         )
@@ -1387,7 +1636,8 @@ class BiddingPage(QWidget):
         # =================================================
 
         self.redouble_button.setEnabled(
-            self.bidding_system.can_redouble(
+            user_can_call
+            and self.bidding_system.can_redouble(
                 current_player
             )
         )
@@ -1679,21 +1929,30 @@ class BiddingPage(QWidget):
                 "players": self.players,
                 "dealer": self.dealer,
                 "board_number": self.board_number,
+
+                # Preserve the actual vulnerability.
+                # For BBO tutorials this comes directly
+                # from the BBO file.
+                "vulnerability": self.vulnerability,
+
                 "contract": contract,
                 "declarer": declarer,
 
                 # Preserve the full auction history,
                 # including Double and Redouble.
-
                 "history": list(
                     self.bidding_system.history
                 ),
 
                 # Preserve the final doubling state.
-
                 "doubling_state": (
                     self.bidding_system.doubling_state
                 ),
+
+                # Preserve the complete BBO data.
+                # This contains the makeable-tricks table
+                # that will later be used for comparison.
+                "bbo_game_data": self.bbo_game_data,
             }
 
         self.update_bidding_ui()

@@ -16,7 +16,7 @@ QH,2S,6H,7H
 6D,3D,AD,5D
 2D,8D,JD,4D
 Claim
-NOTE: when testing a suit break in NT, try keep the controlling card in case it doesn’t: concede an early trick (when you can afford it) instead of later when you can’t afford it.
+NOTE: when testing a suit break in NT, try keep the controlling card in case it doesn't: concede an early trick (when you can afford it) instead of later when you can't afford it.
 Cards held: spades;hearts;diamonds;clubs
 N: Q73;A7654;64;876
 S: AKJT986;2;AQJ;AJ
@@ -24,7 +24,7 @@ E: 542;-;K532;KT9532
 W: -;KQJT983;T987;Q4
 D: S
 BOTH VUL
-2C;3H;DBL;P;3S;P;4S;P;4NT;P;5D;P;5NT;6C;P;6S.
+2C;3H;DBL;P;3S;P;4S;P;4NT;P;5D;P;5NT;P;6C;P;6S.
 KH,4H,2C,2H
 QH,5H,3C,8S
 AS,3H,3S,2S
@@ -34,7 +34,7 @@ AS,3H,3S,2S
 AH,3D,JC,TH
 6D,TD,QD,7D
 Claim
-NOTE: (1) W must have long H based on her bid, so don’t play the A on the first trick in case E can trump it; and the losing JC must be discarded on the winning AH which can only be done once S has no H left. (2) dummy is short of entries for the D finesses, so do not rough the H with 6S on the 2nd trick, as keeping it allows entry to dummy by playing 6S up to the 7S winner.
+NOTE: (1) W must have long H based on her bid, so don't play the A on the first trick in case E can trump it; and the losing JC must be discarded on the winning AH which can only be done once S has no H left. (2) dummy is short of entries for the D finesses, so do not rough the H with 6S on the 2nd trick, as keeping it allows entry to dummy by playing 6S up to the 7S winner.
 Cards held: spades;hearts;diamonds;clubs
 N: J64;T543;A73;Q64
 S: AQ8753;AQ;K65;A7
