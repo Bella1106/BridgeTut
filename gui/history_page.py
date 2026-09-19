@@ -21,12 +21,14 @@ class HistoryPage(QWidget):
     def __init__(
         self,
         history_manager,
+        play_deal_callback=None,
         parent=None,
     ):
-
         super().__init__(parent)
 
         self.history_manager = history_manager
+
+        self.play_deal_callback = play_deal_callback
 
         self.selected_game = None
 
@@ -42,6 +44,7 @@ class HistoryPage(QWidget):
         self.makeable_tricks_container = None
         self.makeable_tricks_table = None
 
+        self.play_deal_button = None
         self.delete_button = None
 
         self.setup_ui()
@@ -395,10 +398,6 @@ class HistoryPage(QWidget):
             self.makeable_tricks_container
         )
 
-        # -------------------------------------------------
-        # HIDE UNTIL A BBO GAME IS SELECTED
-        # -------------------------------------------------
-
         self.makeable_tricks_container.hide()
 
         # =================================================
@@ -416,10 +415,6 @@ class HistoryPage(QWidget):
         right_layout.addWidget(
             tricks_title
         )
-
-        # -------------------------------------------------
-        # SCROLL AREA
-        # -------------------------------------------------
 
         scroll = QScrollArea()
 
@@ -496,13 +491,41 @@ class HistoryPage(QWidget):
         )
 
         # =================================================
-        # NOTE ACTIONS
+        # ACTIONS
         # =================================================
 
         actions_layout = QHBoxLayout()
 
         actions_layout.setSpacing(
             10
+        )
+
+        # -------------------------------------------------
+        # PLAY THIS DEAL
+        # -------------------------------------------------
+
+        self.play_deal_button = QPushButton(
+            "Play This Deal"
+        )
+
+        self.play_deal_button.setObjectName(
+            "playDealButton"
+        )
+
+        self.play_deal_button.setCursor(
+            Qt.PointingHandCursor
+        )
+
+        self.play_deal_button.clicked.connect(
+            self.play_selected_deal
+        )
+
+        self.play_deal_button.setEnabled(
+            False
+        )
+
+        actions_layout.addWidget(
+            self.play_deal_button
         )
 
         # -------------------------------------------------
@@ -561,18 +584,10 @@ class HistoryPage(QWidget):
             actions_layout
         )
 
-        # -------------------------------------------------
-        # ADD RIGHT PANEL
-        # -------------------------------------------------
-
         main_layout.addWidget(
             right_panel,
             2,
         )
-
-        # -------------------------------------------------
-        # STYLE
-        # -------------------------------------------------
 
         self.setStyleSheet(
             self.get_style()
@@ -584,6 +599,12 @@ class HistoryPage(QWidget):
 
     def refresh_history(self):
 
+        self.selected_game = None
+
+        self.game_list.blockSignals(
+            True
+        )
+
         self.game_list.clear()
 
         games = (
@@ -592,8 +613,14 @@ class HistoryPage(QWidget):
 
         for game in games:
 
+            status = ""
+
+            if not game.is_complete:
+
+                status = " (In Progress)"
+
             item = QListWidgetItem(
-                f"Game #{game.game_id}"
+                f"Game #{game.game_id}{status}"
             )
 
             item.setData(
@@ -605,15 +632,15 @@ class HistoryPage(QWidget):
                 item
             )
 
+        self.game_list.blockSignals(
+            False
+        )
+
         if not games:
 
             self.show_no_games()
 
             return
-
-        # -------------------------------------------------
-        # AUTOMATICALLY SELECT LATEST GAME
-        # -------------------------------------------------
 
         self.game_list.setCurrentRow(
             0
@@ -647,6 +674,8 @@ class HistoryPage(QWidget):
 
         if game is None:
 
+            self.show_no_games()
+
             return
 
         self.selected_game = game
@@ -655,11 +684,31 @@ class HistoryPage(QWidget):
             game
         )
 
-        if self.delete_button is not None:
+        self.delete_button.setEnabled(
+            True
+        )
 
-            self.delete_button.setEnabled(
-                True
-            )
+        self.play_deal_button.setEnabled(
+            True
+        )
+
+    # =====================================================
+    # PLAY SELECTED DEAL
+    # =====================================================
+
+    def play_selected_deal(self):
+
+        if self.selected_game is None:
+
+            return
+
+        if self.play_deal_callback is None:
+
+            return
+
+        self.play_deal_callback(
+            self.selected_game
+        )
 
     # =====================================================
     # DISPLAY GAME
@@ -674,10 +723,6 @@ class HistoryPage(QWidget):
             f"Game #{game.game_id}"
         )
 
-        # -------------------------------------------------
-        # GAME WINNER
-        # -------------------------------------------------
-
         winner_text = (
             self.get_game_winner(
                 game
@@ -687,10 +732,6 @@ class HistoryPage(QWidget):
         self.game_result.setText(
             f"<b>Winner:</b> {winner_text}"
         )
-
-        # -------------------------------------------------
-        # FINAL SCORE
-        # -------------------------------------------------
 
         score = game.final_score
 
@@ -805,25 +846,13 @@ class HistoryPage(QWidget):
             f"{game.tricks_played} / 13"
         )
 
-        # -------------------------------------------------
-        # BBO MAKEABLE TRICKS
-        # -------------------------------------------------
-
         self.display_makeable_tricks(
             game
         )
 
-        # -------------------------------------------------
-        # TRICK HISTORY
-        # -------------------------------------------------
-
         self.display_tricks(
             game
         )
-
-        # -------------------------------------------------
-        # NOTES
-        # -------------------------------------------------
 
         self.notes_edit.setPlainText(
             getattr(
@@ -848,19 +877,11 @@ class HistoryPage(QWidget):
             None,
         )
 
-        # -------------------------------------------------
-        # NO BBO DATA
-        # -------------------------------------------------
-
         if not makeable_tricks:
 
             self.makeable_tricks_container.hide()
 
             return
-
-        # -------------------------------------------------
-        # CLEAR PREVIOUS TABLE
-        # -------------------------------------------------
 
         layout = (
             self.makeable_tricks_table.layout()
@@ -898,10 +919,6 @@ class HistoryPage(QWidget):
 
                         child_widget.deleteLater()
 
-        # -------------------------------------------------
-        # TABLE HEADER
-        # -------------------------------------------------
-
         header_layout = QHBoxLayout()
 
         header_layout.setSpacing(
@@ -915,9 +932,7 @@ class HistoryPage(QWidget):
             0,
         )
 
-        corner = QLabel(
-            ""
-        )
+        corner = QLabel("")
 
         corner.setObjectName(
             "makeableHeader"
@@ -961,10 +976,6 @@ class HistoryPage(QWidget):
         layout.addLayout(
             header_layout
         )
-
-        # -------------------------------------------------
-        # TABLE ROWS
-        # -------------------------------------------------
 
         positions = [
             ("North", "N"),
@@ -1016,15 +1027,11 @@ class HistoryPage(QWidget):
                     denomination,
                 )
 
-                if value is None:
-
-                    value_text = "—"
-
-                else:
-
-                    value_text = str(
-                        value
-                    )
+                value_text = (
+                    "—"
+                    if value is None
+                    else str(value)
+                )
 
                 value_label = QLabel(
                     value_text
@@ -1047,10 +1054,6 @@ class HistoryPage(QWidget):
                 row_layout
             )
 
-        # -------------------------------------------------
-        # SHOW BBO SECTION
-        # -------------------------------------------------
-
         self.makeable_tricks_container.show()
 
     # =====================================================
@@ -1070,10 +1073,6 @@ class HistoryPage(QWidget):
 
             return {}
 
-        # -------------------------------------------------
-        # DIRECT STRING KEY
-        # -------------------------------------------------
-
         values = makeable_tricks.get(
             position_key
         )
@@ -1085,22 +1084,14 @@ class HistoryPage(QWidget):
 
             return values
 
-        # -------------------------------------------------
-        # POSITION ENUM KEY
-        # -------------------------------------------------
-
         try:
 
             from card_model.player import Position
 
             position_mapping = {
-
                 "N": Position.NORTH,
-
                 "E": Position.EAST,
-
                 "S": Position.SOUTH,
-
                 "W": Position.WEST,
             }
 
@@ -1127,11 +1118,6 @@ class HistoryPage(QWidget):
 
             pass
 
-        # -------------------------------------------------
-        # FALLBACK:
-        # NORMALISE ENUM/STRING KEYS
-        # -------------------------------------------------
-
         for key, value in makeable_tricks.items():
 
             if not isinstance(
@@ -1149,10 +1135,7 @@ class HistoryPage(QWidget):
                 )
             ).upper()
 
-            if key_text in (
-                position_key,
-                position_key.lower().upper(),
-            ):
+            if key_text == position_key:
 
                 return value
 
@@ -1181,10 +1164,6 @@ class HistoryPage(QWidget):
 
             return None
 
-        # -------------------------------------------------
-        # DIRECT STRING KEY
-        # -------------------------------------------------
-
         value = values.get(
             denomination
         )
@@ -1192,10 +1171,6 @@ class HistoryPage(QWidget):
         if value is not None:
 
             return value
-
-        # -------------------------------------------------
-        # POSSIBLE LOWERCASE STRING KEY
-        # -------------------------------------------------
 
         value = values.get(
             denomination.lower()
@@ -1205,40 +1180,31 @@ class HistoryPage(QWidget):
 
             return value
 
-        # -------------------------------------------------
-        # POSSIBLE ENUM KEY
-        # -------------------------------------------------
-
         try:
 
             from bidding.bidding_system import Denomination
 
             denomination_mapping = {
-
                 "C": getattr(
                     Denomination,
                     "CLUBS",
                     None,
                 ),
-
                 "D": getattr(
                     Denomination,
                     "DIAMONDS",
                     None,
                 ),
-
                 "H": getattr(
                     Denomination,
                     "HEARTS",
                     None,
                 ),
-
                 "S": getattr(
                     Denomination,
                     "SPADES",
                     None,
                 ),
-
                 "NT": getattr(
                     Denomination,
                     "NT",
@@ -1266,11 +1232,6 @@ class HistoryPage(QWidget):
 
             pass
 
-        # -------------------------------------------------
-        # FALLBACK:
-        # COMPARE NORMALISED ENUM VALUES
-        # -------------------------------------------------
-
         for key, value in values.items():
 
             key_text = str(
@@ -1289,42 +1250,27 @@ class HistoryPage(QWidget):
                 )
             ).upper()
 
-            if (
-                key_text == denomination
-                or key_name == denomination
-            ):
-
-                return value
-
-            # Handle common long-form denomination
-            # names.
-
             aliases = {
-
                 "C": (
                     "CLUB",
                     "CLUBS",
                     "♣",
                 ),
-
                 "D": (
                     "DIAMOND",
                     "DIAMONDS",
                     "♦",
                 ),
-
                 "H": (
                     "HEART",
                     "HEARTS",
                     "♥",
                 ),
-
                 "S": (
                     "SPADE",
                     "SPADES",
                     "♠",
                 ),
-
                 "NT": (
                     "NOTRUMP",
                     "NO_TRUMP",
@@ -1332,6 +1278,13 @@ class HistoryPage(QWidget):
                     "NT",
                 ),
             }
+
+            if (
+                key_text == denomination
+                or key_name == denomination
+            ):
+
+                return value
 
             if key_text in aliases.get(
                 denomination,
@@ -1371,10 +1324,6 @@ class HistoryPage(QWidget):
         if doubling_state == SpecialCall.DOUBLE:
 
             return "Doubled"
-
-        # -------------------------------------------------
-        # BACKWARDS COMPATIBILITY
-        # -------------------------------------------------
 
         if getattr(
             game,
@@ -1453,10 +1402,6 @@ class HistoryPage(QWidget):
         game,
     ):
 
-        # -------------------------------------------------
-        # CLEAR OLD TRICKS
-        # -------------------------------------------------
-
         while self.tricks_layout.count():
 
             item = (
@@ -1470,10 +1415,6 @@ class HistoryPage(QWidget):
             if widget is not None:
 
                 widget.deleteLater()
-
-        # -------------------------------------------------
-        # NO TRICKS
-        # -------------------------------------------------
 
         if not game.tricks:
 
@@ -1490,10 +1431,6 @@ class HistoryPage(QWidget):
             )
 
             return
-
-        # -------------------------------------------------
-        # DISPLAY EVERY TRICK
-        # -------------------------------------------------
 
         for trick in game.tricks:
 
@@ -1532,10 +1469,6 @@ class HistoryPage(QWidget):
                 5
             )
 
-            # ---------------------------------------------
-            # TRICK TITLE
-            # ---------------------------------------------
-
             title = QLabel(
                 f"TRICK {trick_number}"
             )
@@ -1548,10 +1481,6 @@ class HistoryPage(QWidget):
                 title
             )
 
-            # ---------------------------------------------
-            # CARDS
-            # ---------------------------------------------
-
             cards_layout = QHBoxLayout()
 
             cards_layout.setSpacing(
@@ -1559,22 +1488,10 @@ class HistoryPage(QWidget):
             )
 
             display_order = [
-
-                self.position_from_letter(
-                    "N"
-                ),
-
-                self.position_from_letter(
-                    "E"
-                ),
-
-                self.position_from_letter(
-                    "S"
-                ),
-
-                self.position_from_letter(
-                    "W"
-                ),
+                self.position_from_letter("N"),
+                self.position_from_letter("E"),
+                self.position_from_letter("S"),
+                self.position_from_letter("W"),
             ]
 
             for position in display_order:
@@ -1613,10 +1530,6 @@ class HistoryPage(QWidget):
             trick_layout.addLayout(
                 cards_layout
             )
-
-            # ---------------------------------------------
-            # TRICK WINNER
-            # ---------------------------------------------
 
             winner_text = self.position_name(
                 winner
@@ -1682,13 +1595,9 @@ class HistoryPage(QWidget):
         from card_model.player import Position
 
         mapping = {
-
             "N": Position.NORTH,
-
             "E": Position.EAST,
-
             "S": Position.SOUTH,
-
             "W": Position.WEST,
         }
 
@@ -1711,10 +1620,6 @@ class HistoryPage(QWidget):
         self.selected_game.set_notes(
             notes
         )
-
-        # -------------------------------------------------
-        # CUSTOM CONFIRMATION MESSAGE BOX
-        # -------------------------------------------------
 
         message_box = QMessageBox(
             self
@@ -1785,10 +1690,6 @@ class HistoryPage(QWidget):
             self.selected_game.game_id
         )
 
-        # -------------------------------------------------
-        # CONFIRM DELETION
-        # -------------------------------------------------
-
         message_box = QMessageBox(
             self
         )
@@ -1858,33 +1759,19 @@ class HistoryPage(QWidget):
 
             return
 
-        # -------------------------------------------------
-        # DELETE FROM HISTORY MANAGER
-        # -------------------------------------------------
-
         self.history_manager.delete_game(
             game_id
         )
 
-        # -------------------------------------------------
-        # CLEAR CURRENT SELECTION
-        # -------------------------------------------------
-
         self.selected_game = None
 
-        # -------------------------------------------------
-        # DISABLE DELETE BUTTON
-        # -------------------------------------------------
+        self.delete_button.setEnabled(
+            False
+        )
 
-        if self.delete_button is not None:
-
-            self.delete_button.setEnabled(
-                False
-            )
-
-        # -------------------------------------------------
-        # REFRESH HISTORY
-        # -------------------------------------------------
+        self.play_deal_button.setEnabled(
+            False
+        )
 
         self.refresh_history()
 
@@ -1938,15 +1825,15 @@ class HistoryPage(QWidget):
 
         self.notes_edit.clear()
 
-        if self.delete_button is not None:
+        self.delete_button.setEnabled(
+            False
+        )
 
-            self.delete_button.setEnabled(
-                False
-            )
+        self.play_deal_button.setEnabled(
+            False
+        )
 
-        if self.makeable_tricks_container is not None:
-
-            self.makeable_tricks_container.hide()
+        self.makeable_tricks_container.hide()
 
         while self.tricks_layout.count():
 
@@ -2182,6 +2069,30 @@ class HistoryPage(QWidget):
             padding: 8px;
         }
 
+        QPushButton#playDealButton {
+            background-color: #e5c557;
+            color: #071710;
+            border: none;
+            border-radius: 6px;
+            padding: 11px 14px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        QPushButton#playDealButton:hover {
+            background-color: #efd477;
+        }
+
+        QPushButton#playDealButton:pressed {
+            background-color: #c9aa42;
+        }
+
+        QPushButton#playDealButton:disabled {
+            background-color: #11271d;
+            color: #5f6964;
+            border: 1px solid #29483b;
+        }
+
         QPushButton#saveButton {
             background-color: #51b5ba;
             color: #071710;
@@ -2222,4 +2133,4 @@ class HistoryPage(QWidget):
             border: 1px solid #29483b;
         }
 
-        """ 
+        """

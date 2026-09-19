@@ -1,4 +1,5 @@
 from pathlib import Path
+from copy import deepcopy
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -248,7 +249,9 @@ class MainWindow(QMainWindow):
         # =================================================
 
         self.history_page = HistoryPage(
-            self.history_manager
+            self.history_manager,
+            play_deal_callback=lambda game:
+            self.play_existing_deal(game),
         )
 
         self.pages.addWidget(
@@ -311,14 +314,7 @@ class MainWindow(QMainWindow):
         # If PlayPage is already displaying this exact
         # GameRecord, do NOT reset it.
         #
-        # This is important because the user may have:
-        #
-        #   - played 1 card of a trick
-        #   - played 2 cards of a trick
-        #   - played 3 cards of a trick
-        #
-        # The live PlayPage contains that partial-trick
-        # state, so we should preserve it.
+        # This preserves partial-trick state.
         # -------------------------------------------------
 
         if (
@@ -349,6 +345,73 @@ class MainWindow(QMainWindow):
 
         self.navigate(
             "Play"
+        )
+
+    # =====================================================
+    # PLAY EXISTING DEAL
+    # =====================================================
+
+    def play_existing_deal(
+        self,
+        game,
+    ):
+
+        if game is None:
+
+            return
+
+        # -------------------------------------------------
+        # COPY THE ORIGINAL PLAYERS/HANDS
+        #
+        # The historical game must not be modified when
+        # the replay is played.
+        # -------------------------------------------------
+
+        players = deepcopy(
+            game.players
+        )
+
+        # -------------------------------------------------
+        # Reset the currently loaded play game.
+        # -------------------------------------------------
+
+        self.play_page.reset_for_new_game()
+
+        # -------------------------------------------------
+        # Create a fresh BiddingPage using the exact
+        # same deal.
+        # -------------------------------------------------
+
+        old_bidding_page = self.bidding_page
+
+        self.bidding_page = BiddingPage(
+            dealer=game.dealer,
+            board_number=game.board_number,
+            players=players,
+        )
+
+        self.pages.insertWidget(
+            1,
+            self.bidding_page
+        )
+
+        self.pages.removeWidget(
+            old_bidding_page
+        )
+
+        old_bidding_page.deleteLater()
+
+        # -------------------------------------------------
+        # This is a new game.
+        #
+        # BiddingPage will create the appropriate
+        # play_data when the auction finishes.
+        # -------------------------------------------------
+
+        self.play_data = None
+
+        self.navigate(
+            "Bidding"
         )
 
     # =====================================================
