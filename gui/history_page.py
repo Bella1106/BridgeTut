@@ -1383,6 +1383,9 @@ class HistoryPage(QWidget):
                 game.calculate_score()
             )
 
+        if score is None:
+            return "Result not available."
+
         if score > 0:
 
             return "North / South"
