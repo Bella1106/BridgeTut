@@ -3383,7 +3383,6 @@ class PlayPage(QWidget):
     def get_dummy(self):
 
         if self.declarer is None:
-
             return None
 
         return self.get_partner(
@@ -3399,7 +3398,6 @@ class PlayPage(QWidget):
         "True for a seat the lesson script controls, not the user"
 
         if self.lesson_state is None:
-
             return False
 
         return position not in (
@@ -3416,15 +3414,15 @@ class PlayPage(QWidget):
         scripted card after a short delay."""
 
         if self.lesson_state is None:
+            return
 
+        if self.auto_play_timer is not None:
             return
 
         if self.lesson_state.is_complete():
-
             return
 
         if self.lesson_state.is_user_turn():
-
             return
 
         self.auto_play_timer = QTimer(
@@ -3448,17 +3446,19 @@ class PlayPage(QWidget):
         self.auto_play_timer = None
 
         if self.lesson_state is None:
-
             return
 
         if self.lesson_state.is_complete():
-
             return
+
+        if self.lesson_state.is_user_turn():
+            return
+
+        self.current_player = (self.lesson_state.current_player)
 
         card = self.lesson_state.expected_card
 
         if card is not None:
-
             self.play_card(card)
 
     # =====================================================
@@ -3468,7 +3468,6 @@ class PlayPage(QWidget):
     def get_leader(self):
 
         if self.declarer is None:
-
             return None
 
         return determine_opening_leader(
@@ -3482,7 +3481,6 @@ class PlayPage(QWidget):
     def denomination_short(self):
 
         if self.contract is None:
-
             return ""
 
         denomination = (
@@ -3517,7 +3515,6 @@ class PlayPage(QWidget):
     ):
 
         if position is None:
-
             return "—"
 
         return {
@@ -3533,7 +3530,6 @@ class PlayPage(QWidget):
     ):
 
         if position is None:
-
             return "?"
 
         return {

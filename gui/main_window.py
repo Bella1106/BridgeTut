@@ -722,11 +722,11 @@ class MainWindow(QMainWindow):
 
         if mode == "play_only":
 
-            self.start_test_mode_one()
+            self.start_lesson()
 
         elif mode == "bid_and_play":
 
-            self.start_lesson()
+            self.start_test_mode_one()
 
     # =====================================================
     # NAVIGATION
