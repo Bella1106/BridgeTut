@@ -1,6 +1,4 @@
 """
-history_manager.py
-------------------
 Manages completed and in-progress BridgeTut games.
 
 HistoryManager is responsible for:
@@ -24,36 +22,26 @@ from .game_record import GameRecord
 
 class HistoryManager:
 
-    # =====================================================
-    # HISTORY FILE
-    # =====================================================
-
     HISTORY_FILE = (
         Path(__file__).resolve().parent
         / "history.pkl"
     )
 
-    # =====================================================
-    # INITIALISE
-    # =====================================================
-
     def __init__(self):
 
-            self.games = []
+        self.games = []
 
-            self.next_game_id = 1
+        self.next_game_id = 1
 
-            print(
-                f"History file: {self.HISTORY_FILE}"
-            )
+        print(
+            f"History file: {self.HISTORY_FILE}"
+        )
 
-            # Load previously saved games.
+        self.load_history()
 
-            self.load_history()
-
-            print(
-                f"Loaded games: {len(self.games)}"
-            )
+        print(
+            f"Loaded games: {len(self.games)}"
+        )
 
     # =====================================================
     # SAVE HISTORY
@@ -124,9 +112,6 @@ class HistoryManager:
                 1,
             )
 
-            # Restore the save callback on
-            # every loaded GameRecord.
-
             for game in self.games:
 
                 game.set_change_callback(
@@ -161,10 +146,13 @@ class HistoryManager:
         notes="",
         board_number=None,
         doubled=False,
+        doubling_state=None,
+        makeable_tricks=None,
     ):
+
         print(
-    f"Adding game #{self.next_game_id}"
-)
+            f"Adding game #{self.next_game_id}"
+        )
 
         game = GameRecord(
             game_id=self.next_game_id,
@@ -176,10 +164,9 @@ class HistoryManager:
             notes=notes,
             board_number=board_number,
             doubled=doubled,
+            doubling_state=doubling_state,
+            makeable_tricks=makeable_tricks,
         )
-
-        # Tell the GameRecord to save the history
-        # whenever something changes.
 
         game.set_change_callback(
             self.save_history
@@ -191,8 +178,6 @@ class HistoryManager:
 
         self.next_game_id += 1
 
-        # Save immediately.
-
         self.save_history()
 
         return game
@@ -202,8 +187,6 @@ class HistoryManager:
     # =====================================================
 
     def get_games(self):
-
-        # Newest games first.
 
         return list(
             reversed(

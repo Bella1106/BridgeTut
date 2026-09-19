@@ -39,6 +39,9 @@ class HistoryPage(QWidget):
         self.tricks_container = None
         self.tricks_layout = None
 
+        self.makeable_tricks_container = None
+        self.makeable_tricks_table = None
+
         self.delete_button = None
 
         self.setup_ui()
@@ -147,6 +150,10 @@ class HistoryPage(QWidget):
             20,
         )
 
+        right_layout.setSpacing(
+            8
+        )
+
         # -------------------------------------------------
         # GAME TITLE
         # -------------------------------------------------
@@ -191,8 +198,121 @@ class HistoryPage(QWidget):
             self.game_score
         )
 
+        # =================================================
+        # GAME INFORMATION
+        # =================================================
+
+        game_info_frame = QFrame()
+
+        game_info_frame.setObjectName(
+            "gameInfoFrame"
+        )
+
+        game_info_layout = QHBoxLayout(
+            game_info_frame
+        )
+
+        game_info_layout.setContentsMargins(
+            0,
+            4,
+            0,
+            6,
+        )
+
+        game_info_layout.setSpacing(
+            30
+        )
+
         # -------------------------------------------------
-        # GAME DETAILS
+        # LEFT INFORMATION COLUMN
+        # -------------------------------------------------
+
+        left_info = QVBoxLayout()
+
+        left_info.setSpacing(
+            5
+        )
+
+        self.dealer_label = QLabel()
+        self.dealer_label.setObjectName(
+            "gameInfoLabel"
+        )
+
+        self.contract_label = QLabel()
+        self.contract_label.setObjectName(
+            "gameInfoLabel"
+        )
+
+        self.declarer_label = QLabel()
+        self.declarer_label.setObjectName(
+            "gameInfoLabel"
+        )
+
+        left_info.addWidget(
+            self.dealer_label
+        )
+
+        left_info.addWidget(
+            self.contract_label
+        )
+
+        left_info.addWidget(
+            self.declarer_label
+        )
+
+        # -------------------------------------------------
+        # RIGHT INFORMATION COLUMN
+        # -------------------------------------------------
+
+        right_info = QVBoxLayout()
+
+        right_info.setSpacing(
+            5
+        )
+
+        self.doubling_label = QLabel()
+        self.doubling_label.setObjectName(
+            "gameInfoLabel"
+        )
+
+        self.vulnerability_label = QLabel()
+        self.vulnerability_label.setObjectName(
+            "gameInfoLabel"
+        )
+
+        self.outcome_label = QLabel()
+        self.outcome_label.setObjectName(
+            "gameInfoLabel"
+        )
+
+        right_info.addWidget(
+            self.doubling_label
+        )
+
+        right_info.addWidget(
+            self.vulnerability_label
+        )
+
+        right_info.addWidget(
+            self.outcome_label
+        )
+
+        game_info_layout.addLayout(
+            left_info,
+            1
+        )
+
+        game_info_layout.addLayout(
+            right_info,
+            1
+        )
+
+        right_layout.addWidget(
+            game_info_frame
+        )
+
+        # -------------------------------------------------
+        # BIDS / TRICKS SUMMARY
         # -------------------------------------------------
 
         self.game_details = QLabel()
@@ -208,6 +328,78 @@ class HistoryPage(QWidget):
         right_layout.addWidget(
             self.game_details
         )
+
+        # =================================================
+        # BBO MAKEABLE TRICKS
+        # =================================================
+
+        self.makeable_tricks_container = QFrame()
+
+        self.makeable_tricks_container.setObjectName(
+            "makeableTricksContainer"
+        )
+
+        makeable_layout = QVBoxLayout(
+            self.makeable_tricks_container
+        )
+
+        makeable_layout.setContentsMargins(
+            0,
+            4,
+            0,
+            6,
+        )
+
+        makeable_layout.setSpacing(
+            5
+        )
+
+        makeable_title = QLabel(
+            "BBO MAKEABLE TRICKS"
+        )
+
+        makeable_title.setObjectName(
+            "sectionTitle"
+        )
+
+        makeable_layout.addWidget(
+            makeable_title
+        )
+
+        self.makeable_tricks_table = QFrame()
+
+        self.makeable_tricks_table.setObjectName(
+            "makeableTricksTable"
+        )
+
+        makeable_table_layout = QVBoxLayout(
+            self.makeable_tricks_table
+        )
+
+        makeable_table_layout.setContentsMargins(
+            8,
+            5,
+            8,
+            5,
+        )
+
+        makeable_table_layout.setSpacing(
+            1
+        )
+
+        makeable_layout.addWidget(
+            self.makeable_tricks_table
+        )
+
+        right_layout.addWidget(
+            self.makeable_tricks_container
+        )
+
+        # -------------------------------------------------
+        # HIDE UNTIL A BBO GAME IS SELECTED
+        # -------------------------------------------------
+
+        self.makeable_tricks_container.hide()
 
         # =================================================
         # TRICK HISTORY
@@ -463,8 +655,6 @@ class HistoryPage(QWidget):
             game
         )
 
-        # Enable delete button.
-
         if self.delete_button is not None:
 
             self.delete_button.setEnabled(
@@ -506,10 +696,6 @@ class HistoryPage(QWidget):
 
         if score is None:
 
-            # Calculate the score if the game
-            # has already been completed but
-            # the score has not yet been calculated.
-
             if game.is_complete:
 
                 score = (
@@ -541,8 +727,8 @@ class HistoryPage(QWidget):
             )
 
             score_text = (
-                "<b>Final Score:</b><br>"
-                f"North / South: {ns_text}<br>"
+                "<b>Final Score:</b> "
+                f"North / South: {ns_text}  |  "
                 f"East / West: {ew_text}"
             )
 
@@ -551,7 +737,7 @@ class HistoryPage(QWidget):
         )
 
         # -------------------------------------------------
-        # GAME DETAILS
+        # GAME INFORMATION
         # -------------------------------------------------
 
         dealer = self.position_name(
@@ -572,10 +758,6 @@ class HistoryPage(QWidget):
             game
         )
 
-        # -------------------------------------------------
-        # GAME OUTCOME
-        # -------------------------------------------------
-
         outcome = getattr(
             game,
             "result",
@@ -584,33 +766,588 @@ class HistoryPage(QWidget):
 
         if outcome is None:
 
-            outcome = game.result_text
+            outcome = getattr(
+                game,
+                "result_text",
+                "—",
+            )
 
-        details = (
-            f"<b>Dealer:</b> {dealer}<br>"
-            f"<b>Contract:</b> {contract}<br>"
-            f"<b>Declarer:</b> {declarer}<br>"
-            f"<b>Doubling:</b> {doubling}<br>"
+        self.dealer_label.setText(
+            f"<b>Dealer:</b> {dealer}"
+        )
+
+        self.contract_label.setText(
+            f"<b>Contract:</b> {contract}"
+        )
+
+        self.declarer_label.setText(
+            f"<b>Declarer:</b> {declarer}"
+        )
+
+        self.doubling_label.setText(
+            f"<b>Doubling:</b> {doubling}"
+        )
+
+        self.vulnerability_label.setText(
             f"<b>Vulnerability:</b> "
-            f"{vulnerability}<br>"
-            f"<b>Result:</b> {outcome}<br>"
+            f"{vulnerability}"
+        )
+
+        self.outcome_label.setText(
+            f"<b>Result:</b> {outcome}"
+        )
+
+        self.game_details.setText(
             f"<b>Bids:</b> "
-            f"{len(game.bidding_history)}<br>"
+            f"{len(game.bidding_history)}"
+            f" &nbsp;&nbsp; "
             f"<b>Tricks:</b> "
             f"{game.tricks_played} / 13"
         )
 
-        self.game_details.setText(
-            details
+        # -------------------------------------------------
+        # BBO MAKEABLE TRICKS
+        # -------------------------------------------------
+
+        self.display_makeable_tricks(
+            game
         )
+
+        # -------------------------------------------------
+        # TRICK HISTORY
+        # -------------------------------------------------
 
         self.display_tricks(
             game
         )
 
+        # -------------------------------------------------
+        # NOTES
+        # -------------------------------------------------
+
         self.notes_edit.setPlainText(
-            game.notes
+            getattr(
+                game,
+                "notes",
+                "",
+            )
         )
+
+    # =====================================================
+    # DISPLAY BBO MAKEABLE TRICKS
+    # =====================================================
+
+    def display_makeable_tricks(
+        self,
+        game,
+    ):
+
+        makeable_tricks = getattr(
+            game,
+            "makeable_tricks",
+            None,
+        )
+
+        # -------------------------------------------------
+        # NO BBO DATA
+        # -------------------------------------------------
+
+        if not makeable_tricks:
+
+            self.makeable_tricks_container.hide()
+
+            return
+
+        # -------------------------------------------------
+        # CLEAR PREVIOUS TABLE
+        # -------------------------------------------------
+
+        layout = (
+            self.makeable_tricks_table.layout()
+        )
+
+        while layout.count():
+
+            item = layout.takeAt(
+                0
+            )
+
+            widget = item.widget()
+
+            if widget is not None:
+
+                widget.deleteLater()
+
+            child_layout = item.layout()
+
+            if child_layout is not None:
+
+                while child_layout.count():
+
+                    child_item = (
+                        child_layout.takeAt(
+                            0
+                        )
+                    )
+
+                    child_widget = (
+                        child_item.widget()
+                    )
+
+                    if child_widget is not None:
+
+                        child_widget.deleteLater()
+
+        # -------------------------------------------------
+        # TABLE HEADER
+        # -------------------------------------------------
+
+        header_layout = QHBoxLayout()
+
+        header_layout.setSpacing(
+            4
+        )
+
+        header_layout.setContentsMargins(
+            0,
+            0,
+            0,
+            0,
+        )
+
+        corner = QLabel(
+            ""
+        )
+
+        corner.setObjectName(
+            "makeableHeader"
+        )
+
+        corner.setFixedWidth(
+            70
+        )
+
+        header_layout.addWidget(
+            corner
+        )
+
+        denominations = [
+            ("♣", "C"),
+            ("♦", "D"),
+            ("♥", "H"),
+            ("♠", "S"),
+            ("NT", "NT"),
+        ]
+
+        for symbol, denomination in denominations:
+
+            label = QLabel(
+                symbol
+            )
+
+            label.setObjectName(
+                "makeableHeader"
+            )
+
+            label.setAlignment(
+                Qt.AlignCenter
+            )
+
+            header_layout.addWidget(
+                label,
+                1
+            )
+
+        layout.addLayout(
+            header_layout
+        )
+
+        # -------------------------------------------------
+        # TABLE ROWS
+        # -------------------------------------------------
+
+        positions = [
+            ("North", "N"),
+            ("East", "E"),
+            ("South", "S"),
+            ("West", "W"),
+        ]
+
+        for position_name, position_key in positions:
+
+            row_layout = QHBoxLayout()
+
+            row_layout.setSpacing(
+                4
+            )
+
+            row_layout.setContentsMargins(
+                0,
+                0,
+                0,
+                0,
+            )
+
+            position_label = QLabel(
+                position_name
+            )
+
+            position_label.setObjectName(
+                "makeablePosition"
+            )
+
+            position_label.setFixedWidth(
+                70
+            )
+
+            row_layout.addWidget(
+                position_label
+            )
+
+            values = self.get_makeable_position_values(
+                makeable_tricks,
+                position_key,
+            )
+
+            for _, denomination in denominations:
+
+                value = self.get_makeable_value(
+                    values,
+                    denomination,
+                )
+
+                if value is None:
+
+                    value_text = "—"
+
+                else:
+
+                    value_text = str(
+                        value
+                    )
+
+                value_label = QLabel(
+                    value_text
+                )
+
+                value_label.setObjectName(
+                    "makeableValue"
+                )
+
+                value_label.setAlignment(
+                    Qt.AlignCenter
+                )
+
+                row_layout.addWidget(
+                    value_label,
+                    1
+                )
+
+            layout.addLayout(
+                row_layout
+            )
+
+        # -------------------------------------------------
+        # SHOW BBO SECTION
+        # -------------------------------------------------
+
+        self.makeable_tricks_container.show()
+
+    # =====================================================
+    # GET MAKEABLE POSITION VALUES
+    # =====================================================
+
+    @staticmethod
+    def get_makeable_position_values(
+        makeable_tricks,
+        position_key,
+    ):
+
+        if not isinstance(
+            makeable_tricks,
+            dict,
+        ):
+
+            return {}
+
+        # -------------------------------------------------
+        # DIRECT STRING KEY
+        # -------------------------------------------------
+
+        values = makeable_tricks.get(
+            position_key
+        )
+
+        if isinstance(
+            values,
+            dict,
+        ):
+
+            return values
+
+        # -------------------------------------------------
+        # POSITION ENUM KEY
+        # -------------------------------------------------
+
+        try:
+
+            from card_model.player import Position
+
+            position_mapping = {
+
+                "N": Position.NORTH,
+
+                "E": Position.EAST,
+
+                "S": Position.SOUTH,
+
+                "W": Position.WEST,
+            }
+
+            enum_position = (
+                position_mapping.get(
+                    position_key
+                )
+            )
+
+            if enum_position is not None:
+
+                values = makeable_tricks.get(
+                    enum_position
+                )
+
+                if isinstance(
+                    values,
+                    dict,
+                ):
+
+                    return values
+
+        except ImportError:
+
+            pass
+
+        # -------------------------------------------------
+        # FALLBACK:
+        # NORMALISE ENUM/STRING KEYS
+        # -------------------------------------------------
+
+        for key, value in makeable_tricks.items():
+
+            if not isinstance(
+                value,
+                dict,
+            ):
+
+                continue
+
+            key_text = str(
+                getattr(
+                    key,
+                    "value",
+                    key,
+                )
+            ).upper()
+
+            if key_text in (
+                position_key,
+                position_key.lower().upper(),
+            ):
+
+                return value
+
+            if key_text.startswith(
+                position_key
+            ):
+
+                return value
+
+        return {}
+
+    # =====================================================
+    # GET MAKEABLE VALUE
+    # =====================================================
+
+    @staticmethod
+    def get_makeable_value(
+        values,
+        denomination,
+    ):
+
+        if not isinstance(
+            values,
+            dict,
+        ):
+
+            return None
+
+        # -------------------------------------------------
+        # DIRECT STRING KEY
+        # -------------------------------------------------
+
+        value = values.get(
+            denomination
+        )
+
+        if value is not None:
+
+            return value
+
+        # -------------------------------------------------
+        # POSSIBLE LOWERCASE STRING KEY
+        # -------------------------------------------------
+
+        value = values.get(
+            denomination.lower()
+        )
+
+        if value is not None:
+
+            return value
+
+        # -------------------------------------------------
+        # POSSIBLE ENUM KEY
+        # -------------------------------------------------
+
+        try:
+
+            from bidding.bidding_system import Denomination
+
+            denomination_mapping = {
+
+                "C": getattr(
+                    Denomination,
+                    "CLUBS",
+                    None,
+                ),
+
+                "D": getattr(
+                    Denomination,
+                    "DIAMONDS",
+                    None,
+                ),
+
+                "H": getattr(
+                    Denomination,
+                    "HEARTS",
+                    None,
+                ),
+
+                "S": getattr(
+                    Denomination,
+                    "SPADES",
+                    None,
+                ),
+
+                "NT": getattr(
+                    Denomination,
+                    "NT",
+                    None,
+                ),
+            }
+
+            enum_value = (
+                denomination_mapping.get(
+                    denomination
+                )
+            )
+
+            if enum_value is not None:
+
+                value = values.get(
+                    enum_value
+                )
+
+                if value is not None:
+
+                    return value
+
+        except ImportError:
+
+            pass
+
+        # -------------------------------------------------
+        # FALLBACK:
+        # COMPARE NORMALISED ENUM VALUES
+        # -------------------------------------------------
+
+        for key, value in values.items():
+
+            key_text = str(
+                getattr(
+                    key,
+                    "value",
+                    key,
+                )
+            ).upper()
+
+            key_name = str(
+                getattr(
+                    key,
+                    "name",
+                    key,
+                )
+            ).upper()
+
+            if (
+                key_text == denomination
+                or key_name == denomination
+            ):
+
+                return value
+
+            # Handle common long-form denomination
+            # names.
+
+            aliases = {
+
+                "C": (
+                    "CLUB",
+                    "CLUBS",
+                    "♣",
+                ),
+
+                "D": (
+                    "DIAMOND",
+                    "DIAMONDS",
+                    "♦",
+                ),
+
+                "H": (
+                    "HEART",
+                    "HEARTS",
+                    "♥",
+                ),
+
+                "S": (
+                    "SPADE",
+                    "SPADES",
+                    "♠",
+                ),
+
+                "NT": (
+                    "NOTRUMP",
+                    "NO_TRUMP",
+                    "NO-TRUMP",
+                    "NT",
+                ),
+            }
+
+            if key_text in aliases.get(
+                denomination,
+                (),
+            ):
+
+                return value
+
+            if key_name in aliases.get(
+                denomination,
+                (),
+            ):
+
+                return value
+
+        return None
 
     # =====================================================
     # DOUBLING TEXT
@@ -620,12 +1357,6 @@ class HistoryPage(QWidget):
     def get_doubling_text(
         game,
     ):
-        """
-        Return the doubling state for display.
-
-        Supports the new doubling_state field while
-        remaining compatible with older saved games.
-        """
 
         doubling_state = getattr(
             game,
@@ -663,12 +1394,6 @@ class HistoryPage(QWidget):
     def vulnerability_text(
         game,
     ):
-        """
-        Return the vulnerability stored for the game.
-
-        GameRecord determines vulnerability from the
-        board number.
-        """
 
         vulnerability = getattr(
             game,
@@ -681,7 +1406,11 @@ class HistoryPage(QWidget):
             return "Unknown"
 
         return str(
-            vulnerability
+            getattr(
+                vulnerability,
+                "value",
+                vulnerability,
+            )
         )
 
     # =====================================================
@@ -693,24 +1422,9 @@ class HistoryPage(QWidget):
         game,
     ):
 
-        # -------------------------------------------------
-        # If the game has not been completed,
-        # there is no winner yet.
-        # -------------------------------------------------
-
         if not game.is_complete:
 
             return "Game in progress"
-
-        # -------------------------------------------------
-        # Get the final score.
-        #
-        # Scores are stored from the NS perspective:
-        #
-        # Positive = North/South won
-        # Negative = East/West won
-        # Zero     = Draw
-        # -------------------------------------------------
 
         score = game.final_score
 
@@ -1194,6 +1908,30 @@ class HistoryPage(QWidget):
             ""
         )
 
+        self.dealer_label.setText(
+            ""
+        )
+
+        self.contract_label.setText(
+            ""
+        )
+
+        self.declarer_label.setText(
+            ""
+        )
+
+        self.doubling_label.setText(
+            ""
+        )
+
+        self.vulnerability_label.setText(
+            ""
+        )
+
+        self.outcome_label.setText(
+            ""
+        )
+
         self.game_details.setText(
             "No games have been recorded yet."
         )
@@ -1205,6 +1943,10 @@ class HistoryPage(QWidget):
             self.delete_button.setEnabled(
                 False
             )
+
+        if self.makeable_tricks_container is not None:
+
+            self.makeable_tricks_container.hide()
 
         while self.tricks_layout.count():
 
@@ -1233,7 +1975,17 @@ class HistoryPage(QWidget):
 
             return "—"
 
-        return position.value.title()
+        value = getattr(
+            position,
+            "value",
+            position,
+        )
+
+        value_text = str(
+            value
+        )
+
+        return value_text.title()
 
     @staticmethod
     def position_letter(
@@ -1244,7 +1996,17 @@ class HistoryPage(QWidget):
 
             return "?"
 
-        return position.value.upper()
+        value = getattr(
+            position,
+            "value",
+            position,
+        )
+
+        value_text = str(
+            value
+        ).upper()
+
+        return value_text
 
     # =====================================================
     # STYLE
@@ -1292,26 +2054,69 @@ class HistoryPage(QWidget):
             color: #51b5ba;
             font-size: 16px;
             font-weight: bold;
-            padding-top: 3px;
+            padding-top: 2px;
         }
 
         QLabel#gameScore {
             color: #e5c557;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: bold;
-            padding-bottom: 3px;
+            padding-bottom: 2px;
+        }
+
+        QFrame#gameInfoFrame {
+            background-color: #071710;
+            border: 1px solid #29483b;
+            border-radius: 7px;
+        }
+
+        QLabel#gameInfoLabel {
+            color: #d1dbd5;
+            font-size: 13px;
+            padding: 2px 0px;
         }
 
         QLabel#gameDetails {
-            color: #d1dbd5;
-            font-size: 14px;
-            padding: 10px 0px;
+            color: #9faea7;
+            font-size: 12px;
+            padding: 2px 0px 5px 0px;
         }
 
         QLabel#sectionTitle {
             color: #b9c8c1;
             font-size: 12px;
             letter-spacing: 1px;
+        }
+
+        QFrame#makeableTricksContainer {
+            background-color: transparent;
+        }
+
+        QFrame#makeableTricksTable {
+            background-color: #071710;
+            border: 1px solid #29483b;
+            border-radius: 7px;
+        }
+
+        QLabel#makeableHeader {
+            color: #e5c557;
+            font-size: 13px;
+            font-weight: bold;
+            padding: 2px;
+        }
+
+        QLabel#makeablePosition {
+            color: #b9c8c1;
+            font-size: 12px;
+            font-weight: bold;
+            padding: 2px;
+        }
+
+        QLabel#makeableValue {
+            color: #f1f4f2;
+            font-size: 13px;
+            font-weight: bold;
+            padding: 2px;
         }
 
         QListWidget#gameList {
@@ -1417,4 +2222,4 @@ class HistoryPage(QWidget):
             border: 1px solid #29483b;
         }
 
-        """
+        """ 

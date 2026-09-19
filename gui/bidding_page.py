@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QFrame,
     QMessageBox,
+    QDialog,
 )
 
 from bidding.bid import Bid, Denomination
@@ -43,6 +44,7 @@ from game_logic.vulnerability import determine_vulnerability
 from game_logic.guided_bidding import GuidedBiddingState
 
 from .widgets.player_seat import PlayerSeat
+
 
 # =========================================================
 # DISPLAY-ONLY DENOMINATION HELPERS
@@ -88,6 +90,7 @@ class BiddingPage(QWidget):
         guided_bidding_state: GuidedBiddingState | None = None,
         tutorial_lesson_data=None,
         bbo_game_data=None,
+        players=None,
         parent=None,
     ):
         super().__init__(parent)
@@ -149,7 +152,11 @@ class BiddingPage(QWidget):
         # DEAL
         # =================================================
 
-        if self.bbo_game_data is not None:
+        if players is not None:
+            # Restarting bidding uses the exact same deal.
+            self.players = players
+
+        elif self.bbo_game_data is not None:
             # BBO examples use the exact hands from
             # the parsed BBO file.
             self.players = deal_from(
@@ -935,7 +942,7 @@ class BiddingPage(QWidget):
             0,
             0,
             0,
-            0,
+            0
         )
 
         center_layout.setSpacing(
@@ -1276,18 +1283,17 @@ class BiddingPage(QWidget):
             QMessageBox QLabel {
                 color: #f1f4f2;
                 font-size: 13px;
-                #min-width: 360px;
             }
 
             QMessageBox QPushButton {
                 min-width: 70px;
                 min-height: 28px;
                 color: #071710;
-                background-color: ##51b5ba;
+                background-color: #51b5ba;
                 border: none;
                 border-radius: 6px;
                 font-size: 13px;
-                font-weight: bold;;
+                font-weight: bold;
             }
 
             QMessageBox QPushButton:hover {
@@ -1309,6 +1315,7 @@ class BiddingPage(QWidget):
     def advance_guided_bidding(
         self,
     ):
+
         if self.guided_bidding_state is None:
             return
 
@@ -1323,7 +1330,10 @@ class BiddingPage(QWidget):
         if self.guided_bidding_state.is_complete():
             self.finish_guided_auction()
 
-    def finish_guided_auction(self):
+    def finish_guided_auction(
+        self,
+    ):
+
         if self.guided_bidding_state is None:
             return
 
@@ -1353,10 +1363,10 @@ class BiddingPage(QWidget):
     ):
 
         if self.auction_completed:
-
             return
 
         if self.guided_bidding_state is not None:
+
             accepted = (
                 self.guided_bidding_state.attempt_call(
                     Position.SOUTH,
@@ -1383,7 +1393,6 @@ class BiddingPage(QWidget):
         )
 
         if not accepted:
-
             return
 
         self.update_bidding_ui()
@@ -1399,10 +1408,10 @@ class BiddingPage(QWidget):
     ):
 
         if self.auction_completed:
-
             return
 
         if self.guided_bidding_state is not None:
+
             accepted = (
                 self.guided_bidding_state.attempt_call(
                     Position.SOUTH,
@@ -1428,7 +1437,6 @@ class BiddingPage(QWidget):
         )
 
         if not accepted:
-
             return
 
         self.update_bidding_ui()
@@ -1444,10 +1452,10 @@ class BiddingPage(QWidget):
     ):
 
         if self.auction_completed:
-
             return
 
         if self.guided_bidding_state is not None:
+
             accepted = (
                 self.guided_bidding_state.attempt_call(
                     Position.SOUTH,
@@ -1473,7 +1481,6 @@ class BiddingPage(QWidget):
         )
 
         if not accepted:
-
             return
 
         self.update_bidding_ui()
@@ -1489,10 +1496,10 @@ class BiddingPage(QWidget):
     ):
 
         if self.auction_completed:
-
             return
 
         if self.guided_bidding_state is not None:
+
             accepted = (
                 self.guided_bidding_state.attempt_call(
                     Position.SOUTH,
@@ -1518,7 +1525,6 @@ class BiddingPage(QWidget):
         )
 
         if not accepted:
-
             return
 
         self.update_bidding_ui()
@@ -1542,11 +1548,14 @@ class BiddingPage(QWidget):
         )
 
         if self.guided_bidding_state is not None:
+
             user_can_call = (
                 self.guided_bidding_state.is_user_turn()
                 and not self.guided_bidding_state.is_complete()
             )
+
         else:
+
             user_can_call = True
 
         self.info_values[
@@ -1715,7 +1724,6 @@ class BiddingPage(QWidget):
             widget = item.widget()
 
             if widget is not None:
-
                 widget.deleteLater()
 
         history = (
@@ -1885,12 +1893,194 @@ class BiddingPage(QWidget):
     ):
 
         if self.auction_completed:
-
             return
 
         if self.bidding_system.auction_finished:
-
             self.finish_auction()
+
+    # =====================================================
+    # PASSED-OUT DEAL
+    # =====================================================
+
+    def show_passed_out_message(
+        self,
+    ):
+
+        dialog = QDialog(
+            self
+        )
+
+        dialog.setWindowTitle(
+            "Bidding Complete"
+        )
+
+        dialog.setModal(
+            True
+        )
+
+        dialog.setFixedWidth(
+            400
+        )
+
+        layout = QVBoxLayout(
+            dialog
+        )
+
+        layout.setContentsMargins(
+            28,
+            24,
+            28,
+            24,
+        )
+
+        layout.setSpacing(
+            12
+        )
+
+        # -------------------------------------------------
+        # TITLE
+        # -------------------------------------------------
+
+        title = QLabel(
+            "Bidding complete"
+        )
+
+        title.setAlignment(
+            Qt.AlignCenter
+        )
+
+        title.setObjectName(
+            "passedOutTitle"
+        )
+
+        layout.addWidget(
+            title
+        )
+
+        # -------------------------------------------------
+        # MESSAGE
+        # -------------------------------------------------
+
+        message = QLabel(
+            "No player bid a contract.<br>"
+            "This deal was passed out.<br><br>"
+            "No cards will be played for this deal."
+        )
+
+        message.setAlignment(
+            Qt.AlignCenter
+        )
+
+        message.setWordWrap(
+            True
+        )
+
+        message.setObjectName(
+            "passedOutMessage"
+        )
+
+        layout.addWidget(
+            message
+        )
+
+        # -------------------------------------------------
+        # RESTART BIDDING
+        # -------------------------------------------------
+
+        start_button = QPushButton(
+            "Restart Bidding"
+        )
+
+        start_button.setCursor(
+            Qt.PointingHandCursor
+        )
+
+        start_button.setFixedHeight(
+            36
+        )
+
+        start_button.setObjectName(
+            "passedOutButton"
+        )
+
+        start_button.clicked.connect(
+            dialog.accept
+        )
+
+        # This layout makes the button explicitly centred.
+        button_layout = QHBoxLayout()
+
+        button_layout.setContentsMargins(
+            0,
+            8,
+            0,
+            0,
+        )
+
+        button_layout.addStretch()
+
+        button_layout.addWidget(
+            start_button
+        )
+
+        button_layout.addStretch()
+
+        layout.addLayout(
+            button_layout
+        )
+
+        # -------------------------------------------------
+        # STYLE
+        # -------------------------------------------------
+
+        dialog.setStyleSheet(
+            """
+            QDialog {
+                background-color: #11271d;
+                border: 1px solid #29483b;
+            }
+
+            QLabel#passedOutTitle {
+                color: #e5c557;
+                font-size: 20px;
+                font-weight: bold;
+                padding-bottom: 4px;
+            }
+
+            QLabel#passedOutMessage {
+                color: #b9c8c1;
+                font-size: 13px;
+                line-height: 1.5;
+            }
+
+            QPushButton#passedOutButton {
+                min-width: 150px;
+                padding: 7px 18px;
+                background-color: #51b5ba;
+                color: #071710;
+                border: none;
+                border-radius: 6px;
+                font-size: 13px;
+                font-weight: bold;
+            }
+
+            QPushButton#passedOutButton:hover {
+                background-color: #68c4c8;
+            }
+
+            QPushButton#passedOutButton:pressed {
+                background-color: #3f9da2;
+            }
+            """
+        )
+
+        result = dialog.exec()
+
+        if result == QDialog.Accepted:
+            window = self.window()
+
+            if hasattr(window, "restart_bidding"):
+                window.restart_bidding()
 
     # =====================================================
     # FINISH AUCTION
@@ -1901,7 +2091,6 @@ class BiddingPage(QWidget):
     ):
 
         if self.auction_completed:
-
             return
 
         self.auction_completed = True
@@ -1912,11 +2101,23 @@ class BiddingPage(QWidget):
             )
         )
 
-        declarer = None
+        # =================================================
+        # PASSED-OUT DEAL
+        # =================================================
 
-        if contract is not None:
+        if contract is None:
 
-            declarer = contract.declarer
+            self.update_bidding_ui()
+
+            self.show_passed_out_message()
+
+            return
+
+        # =================================================
+        # CONTRACT EXISTS
+        # =================================================
+
+        declarer = contract.declarer
 
         window = self.window()
 
@@ -1930,29 +2131,26 @@ class BiddingPage(QWidget):
                 "dealer": self.dealer,
                 "board_number": self.board_number,
 
-                # Preserve the actual vulnerability.
-                # For BBO tutorials this comes directly
-                # from the BBO file.
                 "vulnerability": self.vulnerability,
 
                 "contract": contract,
                 "declarer": declarer,
 
-                # Preserve the full auction history,
-                # including Double and Redouble.
                 "history": list(
                     self.bidding_system.history
                 ),
 
-                # Preserve the final doubling state.
                 "doubling_state": (
                     self.bidding_system.doubling_state
                 ),
 
-                # Preserve the complete BBO data.
-                # This contains the makeable-tricks table
-                # that will later be used for comparison.
                 "bbo_game_data": self.bbo_game_data,
+
+                "makeable_tricks": (
+                    self.bbo_game_data.makeable_tricks
+                    if self.bbo_game_data is not None
+                    else None
+                ),
             }
 
         self.update_bidding_ui()
@@ -1976,7 +2174,6 @@ class BiddingPage(QWidget):
     ):
 
         if position is None:
-
             return "—"
 
         return {

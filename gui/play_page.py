@@ -22,6 +22,7 @@ GUI responsibilities:
 - Save completed tricks to GameRecord
 - Display trick scores as the game progresses
 - Display the final game result in a popup
+- Display BBO makeable-tricks information when playing a BBO example
 - Trigger undo operations
 """
 
@@ -84,6 +85,24 @@ class PlayPage(QWidget):
         self.history = []
 
         self.game_record = None
+
+        # Explicit vulnerability for the current game.
+        #
+        # Normal games calculate vulnerability from the board
+        # number.
+        #
+        # BBO games provide vulnerability directly from the
+        # parsed BBO hand record.
+
+        self.vulnerability = None
+
+        # BBO makeable-tricks reference table.
+        #
+        # None = normal game / scripted tutorial
+        #
+        # dict = BBO example
+
+        self.makeable_tricks = None
 
         # Exact state of the final auction.
         #
@@ -241,6 +260,33 @@ class PlayPage(QWidget):
                 "board_number"
             )
 
+            # =================================================
+            # VULNERABILITY
+            # =================================================
+
+            # BBO games provide vulnerability explicitly.
+            #
+            # Normal games leave this as None and use the
+            # board-number calculation when the final result
+            # is displayed.
+
+            self.vulnerability = data.get(
+                "vulnerability"
+            )
+
+            # =================================================
+            # BBO MAKEABLE TRICKS
+            # =================================================
+
+            # This is populated only for BBO examples.
+            #
+            # The values come directly from the BBO hand
+            # record and are not calculated by BridgeTut.
+
+            self.makeable_tricks = data.get(
+                "makeable_tricks"
+            )
+
             self.contract = data.get(
                 "contract"
             )
@@ -371,6 +417,12 @@ class PlayPage(QWidget):
             self.declarer = None
 
             self.history = []
+
+            self.board_number = None
+
+            self.vulnerability = None
+
+            self.makeable_tricks = None
 
             self.doubling_state = None
 
@@ -517,6 +569,7 @@ class PlayPage(QWidget):
                 ),
                 board_number=self.board_number,
                 doubled=doubled,
+                makeable_tricks=self.makeable_tricks,
             )
         )
 
@@ -592,6 +645,10 @@ class PlayPage(QWidget):
         self.declarer = None
 
         self.history = []
+
+        self.vulnerability = None
+
+        self.makeable_tricks = None
 
         self.doubling_state = None
 
@@ -1416,7 +1473,7 @@ class PlayPage(QWidget):
                     self.game_complete_label.setText(
                         "GAME COMPLETE\n\n"
                         "All 13 tricks have been played.\n"
-                       "The game has been saved to history."
+                        "The game has been saved to history."
                     )
 
                 if self.game_complete_label is not None:
@@ -1645,7 +1702,7 @@ class PlayPage(QWidget):
         )
 
         dialog.setMinimumWidth(
-            430
+            520
         )
 
         dialog.setObjectName(
@@ -1823,6 +1880,23 @@ class PlayPage(QWidget):
         layout.addWidget(
             details
         )
+
+        # =================================================
+        # BBO MAKEABLE TRICKS
+        # =================================================
+
+        # BBO provides a reference table showing how many
+        # tricks can be made by each player in each
+        # denomination.
+        #
+        # This table is shown only for BBO examples.
+        # It is not calculated by BridgeTut.
+
+        if self.makeable_tricks is not None:
+
+            layout.addWidget(
+                self.create_bbo_makeable_tricks_section()
+            )
 
         # =================================================
         # FINAL SCORE
@@ -2015,6 +2089,35 @@ class PlayPage(QWidget):
                 font-weight: bold;
             }
 
+            QFrame#bboMakeableFrame {
+                background-color: #071710;
+                border: 1px solid #29483b;
+                border-radius: 8px;
+            }
+
+            QLabel#bboMakeableTitle {
+                color: #e5c557;
+                font-size: 13px;
+                font-weight: bold;
+            }
+
+            QLabel#bboTableHeader {
+                color: #b9c8c1;
+                font-size: 12px;
+                font-weight: bold;
+            }
+
+            QLabel#bboTablePosition {
+                color: #f1f4f2;
+                font-size: 12px;
+                font-weight: bold;
+            }
+
+            QLabel#bboTableValue {
+                color: #f1f4f2;
+                font-size: 12px;
+            }
+
             QFrame#finalScoreFrame {
                 background-color: #071710;
                 border: 1px solid #e5c557;
@@ -2056,6 +2159,208 @@ class PlayPage(QWidget):
         )
 
         dialog.exec()
+
+    # =====================================================
+    # BBO MAKEABLE TRICKS
+    # =====================================================
+
+    def create_bbo_makeable_tricks_section(self):
+
+        frame = QFrame()
+
+        frame.setObjectName(
+            "bboMakeableFrame"
+        )
+
+        layout = QVBoxLayout(
+            frame
+        )
+
+        layout.setContentsMargins(
+            16,
+            14,
+            16,
+            14,
+        )
+
+        layout.setSpacing(
+            8
+        )
+
+        # =================================================
+        # TITLE
+        # =================================================
+
+        title = QLabel(
+            "BBO MAKEABLE TRICKS"
+        )
+
+        title.setObjectName(
+            "bboMakeableTitle"
+        )
+
+        title.setAlignment(
+            Qt.AlignCenter
+        )
+
+        layout.addWidget(
+            title
+        )
+
+        # =================================================
+        # TABLE
+        # =================================================
+
+        table = QGridLayout()
+
+        table.setContentsMargins(
+            0,
+            2,
+            0,
+            2,
+        )
+
+        table.setHorizontalSpacing(
+            18
+        )
+
+        table.setVerticalSpacing(
+            7
+        )
+
+        denominations = (
+            Denomination.CLUBS,
+            Denomination.DIAMONDS,
+            Denomination.HEARTS,
+            Denomination.SPADES,
+            Denomination.NO_TRUMP,
+        )
+
+        # =================================================
+        # HEADER
+        # =================================================
+
+        headers = {
+            Denomination.CLUBS: "♣",
+            Denomination.DIAMONDS: "♦",
+            Denomination.HEARTS: "♥",
+            Denomination.SPADES: "♠",
+            Denomination.NO_TRUMP: "NT",
+        }
+
+        empty_header = QLabel()
+
+        table.addWidget(
+            empty_header,
+            0,
+            0,
+        )
+
+        for column, denomination in enumerate(
+            denominations,
+            start=1,
+        ):
+
+            label = QLabel(
+                headers[denomination]
+            )
+
+            label.setObjectName(
+                "bboTableHeader"
+            )
+
+            label.setAlignment(
+                Qt.AlignCenter
+            )
+
+            table.addWidget(
+                label,
+                0,
+                column,
+            )
+
+        # =================================================
+        # PLAYER ROWS
+        # =================================================
+
+        positions = (
+            Position.NORTH,
+            Position.SOUTH,
+            Position.EAST,
+            Position.WEST,
+        )
+
+        for row, position in enumerate(
+            positions,
+            start=1,
+        ):
+
+            position_label = QLabel(
+                self.position_name(
+                    position
+                )
+            )
+
+            position_label.setObjectName(
+                "bboTablePosition"
+            )
+
+            table.addWidget(
+                position_label,
+                row,
+                0,
+            )
+
+            values = self.makeable_tricks.get(
+                position,
+                {},
+            )
+
+            for column, denomination in enumerate(
+                denominations,
+                start=1,
+            ):
+
+                value = values.get(
+                    denomination
+                )
+
+                value_text = (
+                    "-"
+                    if value is None
+                    else str(value)
+                )
+
+                value_label = QLabel(
+                    value_text
+                )
+
+                value_label.setObjectName(
+                    "bboTableValue"
+                )
+
+                value_label.setAlignment(
+                    Qt.AlignCenter
+                )
+
+                table.addWidget(
+                    value_label,
+                    row,
+                    column,
+                )
+
+        # Make the position column slightly wider.
+
+        table.setColumnMinimumWidth(
+            0,
+            55,
+        )
+
+        layout.addLayout(
+            table
+        )
+
+        return frame
 
     # =====================================================
     # RESULT ROW
@@ -2169,6 +2474,18 @@ class PlayPage(QWidget):
     # =====================================================
 
     def vulnerability_text(self):
+
+        # BBO games carry vulnerability directly from the
+        # BBO hand record.
+
+        if self.vulnerability is not None:
+
+            return str(
+                self.vulnerability
+            )
+
+        # Normal games continue to derive vulnerability
+        # from their board number.
 
         return str(
             determine_vulnerability(
@@ -2462,9 +2779,13 @@ class PlayPage(QWidget):
             if self.game_complete:
 
                 if self.lesson_state is not None:
-                    self.trick_value.setText(f"{self.trick_number} tricks")
+                    self.trick_value.setText(
+                        f"{self.trick_number} tricks"
+                    )
                 else:
-                    self.trick_value.setText("13 / 13")
+                    self.trick_value.setText(
+                        "13 / 13"
+                    )
 
             else:
 

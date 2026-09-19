@@ -269,6 +269,87 @@ class MainWindow(QMainWindow):
             "Bidding"
         )
 
+    def restart_bidding(self):
+
+        self.play_page.reset_for_new_game()
+
+        old_bidding_page = self.bidding_page
+
+        # =================================================
+        # BBO EXAMPLE
+        # =================================================
+
+        if old_bidding_page.bbo_game_data is not None:
+
+            self.bidding_page = BiddingPage(
+                bbo_game_data=(
+                    old_bidding_page.bbo_game_data
+                ),
+
+                players=(
+                    old_bidding_page.players
+                ),
+            )
+
+        # =================================================
+        # GUIDED LESSON
+        # =================================================
+
+        elif old_bidding_page.tutorial_lesson_data is not None:
+
+            tutorial_data = (
+                old_bidding_page.tutorial_lesson_data
+            )
+
+            guided_lesson = GuidedBiddingLesson(
+                dealer=tutorial_data.dealer,
+                script=tutorial_data.auction,
+                user_seat=Position.SOUTH,
+            )
+
+            guided_state = GuidedBiddingState(
+                guided_lesson
+            )
+
+            self.bidding_page = BiddingPage(
+                guided_bidding_state=guided_state,
+                tutorial_lesson_data=tutorial_data,
+                players=old_bidding_page.players,
+            )
+
+            self.bidding_page.guided_auction_finished.connect(
+                self.finish_bid_and_play_lesson
+            )
+
+        # =================================================
+        # NORMAL GAME
+        # =================================================
+
+        else:
+
+            self.bidding_page = BiddingPage(
+                dealer=old_bidding_page.dealer,
+                board_number=old_bidding_page.board_number,
+                players=old_bidding_page.players,
+            )
+
+        self.pages.insertWidget(
+            1,
+            self.bidding_page
+        )
+
+        self.pages.removeWidget(
+            old_bidding_page
+        )
+
+        old_bidding_page.deleteLater()
+
+        self.play_data = None
+
+        self.navigate(
+            "Bidding"
+        )
+    
     def start_bbo_example(
         self,
         filename,
