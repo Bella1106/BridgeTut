@@ -1,4 +1,6 @@
+import tempfile
 import unittest
+from pathlib import Path
 
 from game_history.game_record import GameRecord
 from game_history.history_manager import HistoryManager
@@ -182,6 +184,31 @@ class TestGameRecord(unittest.TestCase):
 
 
 class TestHistoryManager(unittest.TestCase):
+
+    def setUp(self):
+        """
+        Give every test its own temporary history file.
+
+        This prevents the tests from reading or modifying the
+        application's real game_history/history.pkl file.
+        """
+
+        self.temp_directory = tempfile.TemporaryDirectory()
+
+        self.original_history_file = HistoryManager.HISTORY_FILE
+
+        HistoryManager.HISTORY_FILE = (
+            Path(self.temp_directory.name) / "history.pkl"
+        )
+
+    def tearDown(self):
+        """
+        Restore the real history file location after each test.
+        """
+
+        HistoryManager.HISTORY_FILE = self.original_history_file
+
+        self.temp_directory.cleanup()
 
     # =====================================================
     # INITIAL STATE
@@ -432,4 +459,3 @@ class TestHistoryManager(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

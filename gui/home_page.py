@@ -19,6 +19,8 @@ class HomePage(QWidget):
     def __init__(
         self,
         new_game_callback=None,
+        resume_game_callback=None,
+        should_show_resume_callback=None,
         history_callback=None,
         tutorials_callback=None,
         lesson_callback=None,
@@ -26,9 +28,15 @@ class HomePage(QWidget):
         super().__init__()
 
         self.new_game_callback = new_game_callback
+        self.resume_game_callback = resume_game_callback
+        self.should_show_resume_callback = (
+            should_show_resume_callback
+        )
         self.history_callback = history_callback
         self.tutorials_callback = tutorials_callback
         self.lesson_callback = lesson_callback
+
+        self.background_overlay = None
 
         self.setup_ui()
 
@@ -120,22 +128,21 @@ class HomePage(QWidget):
         grid.setSpacing(16)
 
         # =================================================
-        # NEW GAME
+        # PLAY
         # =================================================
 
-        new_game = self.create_home_card(
+        play = self.create_home_card(
             "▷",
-            "New Game",
-            "Shuffle, deal and take all four seats.",
+            "Play",
+            "Start a new game or continue an unfinished game.",
             selected=True,
         )
 
-        if self.new_game_callback:
-            new_game.clicked.connect(
-                self.new_game_callback
-            )
+        play.clicked.connect(
+            self.show_play_selection
+        )
 
-        grid.addWidget(new_game, 0, 0)
+        grid.addWidget(play, 0, 0)
 
         # =================================================
         # TUTORIALS
@@ -148,8 +155,6 @@ class HomePage(QWidget):
             "BBO example hands.",
         )
 
-        # Always connect Tutorials.
-        # The menu itself handles the three tutorial choices.
         tutorials.clicked.connect(
             self.show_tutorial_selection
         )
@@ -198,7 +203,297 @@ class HomePage(QWidget):
         # STYLES
         # =================================================
 
-        self.setStyleSheet(self.get_style())
+        self.setStyleSheet(
+            self.get_style()
+        )
+
+    # =====================================================
+    # BACKGROUND OVERLAY
+    # =====================================================
+
+    def show_background_overlay(self):
+
+        if self.background_overlay is not None:
+            return
+
+        self.background_overlay = QFrame(self)
+
+        self.background_overlay.setObjectName(
+            "backgroundOverlay"
+        )
+
+        self.background_overlay.setStyleSheet(
+            """
+            QFrame#backgroundOverlay {
+                background-color: rgba(0, 0, 0, 85);
+            }
+            """
+        )
+
+        self.background_overlay.setGeometry(
+            self.rect()
+        )
+
+        self.background_overlay.raise_()
+        self.background_overlay.show()
+
+    # =====================================================
+
+    def hide_background_overlay(self):
+
+        if self.background_overlay is not None:
+
+            self.background_overlay.hide()
+            self.background_overlay.deleteLater()
+
+            self.background_overlay = None
+
+    # =====================================================
+
+    def resizeEvent(self, event):
+
+        super().resizeEvent(event)
+
+        if self.background_overlay is not None:
+
+            self.background_overlay.setGeometry(
+                self.rect()
+            )
+
+    # =====================================================
+    # SHOW DIALOG
+    # =====================================================
+
+    def show_dialog(self, dialog):
+
+        self.show_background_overlay()
+
+        try:
+            dialog.exec()
+
+        finally:
+            self.hide_background_overlay()
+
+    # =====================================================
+    # PLAY SELECTION
+    # =====================================================
+
+    def show_play_selection(self):
+
+        # -------------------------------------------------
+        # If there is no unfinished game, go straight to
+        # a new game.
+        #
+        # This means the Play card does not unnecessarily
+        # show a Resume/New Game popup after a completed
+        # game or when there is no saved game.
+        # -------------------------------------------------
+
+        has_unfinished_game = False
+
+        if self.should_show_resume_callback:
+
+            has_unfinished_game = (
+                self.should_show_resume_callback()
+            )
+
+        if not has_unfinished_game:
+
+            if self.new_game_callback:
+
+                self.new_game_callback()
+
+            return
+
+        # =================================================
+        # THERE IS AN UNFINISHED GAME
+        # =================================================
+
+        dialog = QDialog(self)
+
+        dialog.setWindowTitle(
+            "Play"
+        )
+
+        dialog.setModal(True)
+
+        dialog.setMinimumWidth(
+            520
+        )
+
+        dialog.setStyleSheet(
+            self.get_dialog_style()
+        )
+
+        layout = QVBoxLayout(
+            dialog
+        )
+
+        layout.setContentsMargins(
+            28,
+            24,
+            28,
+            24,
+        )
+
+        layout.setSpacing(
+            12
+        )
+
+        # =================================================
+        # TITLE
+        # =================================================
+
+        title = QLabel(
+            "PLAY"
+        )
+
+        title.setObjectName(
+            "tutorialTitle"
+        )
+
+        title.setAlignment(
+            Qt.AlignCenter
+        )
+
+        layout.addWidget(
+            title
+        )
+
+        # =================================================
+        # SUBTITLE
+        # =================================================
+
+        subtitle = QLabel(
+            "You have an unfinished game."
+        )
+
+        subtitle.setObjectName(
+            "tutorialSubtitle"
+        )
+
+        subtitle.setAlignment(
+            Qt.AlignCenter
+        )
+
+        layout.addWidget(
+            subtitle
+        )
+
+        layout.addSpacing(
+            8
+        )
+
+        # =================================================
+        # NEW GAME
+        # =================================================
+
+        new_game = self.create_tutorial_option(
+            "1",
+            "New Game",
+            "Start a completely new Bridge game. "
+            "Your unfinished game will remain in history.",
+        )
+
+        new_game.clicked.connect(
+            lambda: self.start_new_game(
+                dialog
+            )
+        )
+
+        layout.addWidget(
+            new_game
+        )
+
+        # =================================================
+        # RESUME GAME
+        # =================================================
+
+        resume_game = self.create_tutorial_option(
+            "2",
+            "Resume Game",
+            "Continue your unfinished game "
+            "from where you left off.",
+        )
+
+        if self.resume_game_callback:
+
+            resume_game.clicked.connect(
+                lambda: self.resume_game(
+                    dialog
+                )
+            )
+
+        else:
+
+            resume_game.setEnabled(
+                False
+            )
+
+        layout.addWidget(
+            resume_game
+        )
+
+        # =================================================
+        # CANCEL
+        # =================================================
+
+        cancel = QPushButton(
+            "CANCEL"
+        )
+
+        cancel.setObjectName(
+            "cancelButton"
+        )
+
+        cancel.setCursor(
+            Qt.PointingHandCursor
+        )
+
+        cancel.clicked.connect(
+            dialog.reject
+        )
+
+        layout.addSpacing(
+            6
+        )
+
+        layout.addWidget(
+            cancel,
+            alignment=Qt.AlignRight,
+        )
+
+        self.show_dialog(dialog)
+
+    # =====================================================
+    # START NEW GAME
+    # =====================================================
+
+    def start_new_game(
+        self,
+        dialog,
+    ):
+
+        dialog.accept()
+
+        if self.new_game_callback:
+
+            self.new_game_callback()
+
+    # =====================================================
+    # RESUME GAME
+    # =====================================================
+
+    def resume_game(
+        self,
+        dialog,
+    ):
+
+        dialog.accept()
+
+        if self.resume_game_callback:
+
+            self.resume_game_callback()
 
     # =====================================================
     # TUTORIAL SELECTION
@@ -208,14 +503,25 @@ class HomePage(QWidget):
 
         dialog = QDialog(self)
 
-        dialog.setWindowTitle("Tutorials")
-        dialog.setModal(True)
-        dialog.setMinimumWidth(520)
+        dialog.setWindowTitle(
+            "Tutorials"
+        )
+
+        dialog.setModal(
+            True
+        )
+
+        dialog.setMinimumWidth(
+            520
+        )
+
         dialog.setStyleSheet(
             self.get_dialog_style()
         )
 
-        layout = QVBoxLayout(dialog)
+        layout = QVBoxLayout(
+            dialog
+        )
 
         layout.setContentsMargins(
             28,
@@ -224,17 +530,29 @@ class HomePage(QWidget):
             24,
         )
 
-        layout.setSpacing(12)
+        layout.setSpacing(
+            12
+        )
 
         # =================================================
         # TITLE
         # =================================================
 
-        title = QLabel("TUTORIALS")
-        title.setObjectName("tutorialTitle")
-        title.setAlignment(Qt.AlignCenter)
+        title = QLabel(
+            "TUTORIALS"
+        )
 
-        layout.addWidget(title)
+        title.setObjectName(
+            "tutorialTitle"
+        )
+
+        title.setAlignment(
+            Qt.AlignCenter
+        )
+
+        layout.addWidget(
+            title
+        )
 
         # =================================================
         # SUBTITLE
@@ -244,12 +562,21 @@ class HomePage(QWidget):
             "Choose how you would like to practise."
         )
 
-        subtitle.setObjectName("tutorialSubtitle")
-        subtitle.setAlignment(Qt.AlignCenter)
+        subtitle.setObjectName(
+            "tutorialSubtitle"
+        )
 
-        layout.addWidget(subtitle)
+        subtitle.setAlignment(
+            Qt.AlignCenter
+        )
 
-        layout.addSpacing(8)
+        layout.addWidget(
+            subtitle
+        )
+
+        layout.addSpacing(
+            8
+        )
 
         # =================================================
         # 1. PLAY ONLY
@@ -265,7 +592,9 @@ class HomePage(QWidget):
             lambda: self.start_play_only(dialog)
         )
 
-        layout.addWidget(play_only)
+        layout.addWidget(
+            play_only
+        )
 
         # =================================================
         # 2. BID + PLAY
@@ -282,7 +611,9 @@ class HomePage(QWidget):
             lambda: self.start_bid_and_play(dialog)
         )
 
-        layout.addWidget(bid_and_play)
+        layout.addWidget(
+            bid_and_play
+        )
 
         # =================================================
         # 3. BBO EXAMPLES
@@ -298,32 +629,49 @@ class HomePage(QWidget):
             lambda: self.start_bbo(dialog)
         )
 
-        layout.addWidget(bbo)
+        layout.addWidget(
+            bbo
+        )
 
         # =================================================
         # CANCEL
         # =================================================
 
-        cancel = QPushButton("CANCEL")
+        cancel = QPushButton(
+            "CANCEL"
+        )
 
-        cancel.setObjectName("cancelButton")
-        cancel.setCursor(Qt.PointingHandCursor)
-        cancel.clicked.connect(dialog.reject)
+        cancel.setObjectName(
+            "cancelButton"
+        )
 
-        layout.addSpacing(6)
+        cancel.setCursor(
+            Qt.PointingHandCursor
+        )
+
+        cancel.clicked.connect(
+            dialog.reject
+        )
+
+        layout.addSpacing(
+            6
+        )
 
         layout.addWidget(
             cancel,
             alignment=Qt.AlignRight,
         )
 
-        dialog.exec()
+        self.show_dialog(dialog)
 
     # =====================================================
     # PLAY ONLY
     # =====================================================
 
-    def start_play_only(self, dialog):
+    def start_play_only(
+        self,
+        dialog,
+    ):
 
         dialog.accept()
 
@@ -344,7 +692,10 @@ class HomePage(QWidget):
     # BID + PLAY
     # =====================================================
 
-    def start_bid_and_play(self, dialog):
+    def start_bid_and_play(
+        self,
+        dialog,
+    ):
 
         dialog.accept()
 
@@ -365,22 +716,38 @@ class HomePage(QWidget):
     # BBO
     # =====================================================
 
-    def start_bbo(self, dialog):
+    def start_bbo(
+        self,
+        dialog,
+    ):
 
         dialog.accept()
 
         bbo_tutorials = get_bbo_tutorials()
 
-        bbo_dialog = QDialog(self)
+        bbo_dialog = QDialog(
+            self
+        )
 
-        bbo_dialog.setWindowTitle("BBO Examples")
-        bbo_dialog.setModal(True)
-        bbo_dialog.setMinimumWidth(520)
+        bbo_dialog.setWindowTitle(
+            "BBO Examples"
+        )
+
+        bbo_dialog.setModal(
+            True
+        )
+
+        bbo_dialog.setMinimumWidth(
+            520
+        )
+
         bbo_dialog.setStyleSheet(
             self.get_dialog_style()
         )
 
-        layout = QVBoxLayout(bbo_dialog)
+        layout = QVBoxLayout(
+            bbo_dialog
+        )
 
         layout.setContentsMargins(
             28,
@@ -389,17 +756,29 @@ class HomePage(QWidget):
             24,
         )
 
-        layout.setSpacing(12)
+        layout.setSpacing(
+            12
+        )
 
         # =================================================
         # TITLE
         # =================================================
 
-        title = QLabel("BBO EXAMPLES")
-        title.setObjectName("tutorialTitle")
-        title.setAlignment(Qt.AlignCenter)
+        title = QLabel(
+            "BBO EXAMPLES"
+        )
 
-        layout.addWidget(title)
+        title.setObjectName(
+            "tutorialTitle"
+        )
+
+        title.setAlignment(
+            Qt.AlignCenter
+        )
+
+        layout.addWidget(
+            title
+        )
 
         # =================================================
         # SUBTITLE
@@ -409,12 +788,21 @@ class HomePage(QWidget):
             "Choose a BBO example hand to practise."
         )
 
-        subtitle.setObjectName("tutorialSubtitle")
-        subtitle.setAlignment(Qt.AlignCenter)
+        subtitle.setObjectName(
+            "tutorialSubtitle"
+        )
 
-        layout.addWidget(subtitle)
+        subtitle.setAlignment(
+            Qt.AlignCenter
+        )
 
-        layout.addSpacing(8)
+        layout.addWidget(
+            subtitle
+        )
+
+        layout.addSpacing(
+            8
+        )
 
         # =================================================
         # BBO EXAMPLES
@@ -433,34 +821,47 @@ class HomePage(QWidget):
 
             option.clicked.connect(
                 lambda checked=False,
-                tutorial=tutorial: self.load_bbo_tutorial(
-                    bbo_dialog,
-                    tutorial,
-                )
+                tutorial=tutorial:
+                    self.load_bbo_tutorial(
+                        bbo_dialog,
+                        tutorial,
+                    )
             )
 
-            layout.addWidget(option)
+            layout.addWidget(
+                option
+            )
 
         # =================================================
         # CANCEL
         # =================================================
 
-        cancel = QPushButton("CANCEL")
+        cancel = QPushButton(
+            "CANCEL"
+        )
 
-        cancel.setObjectName("cancelButton")
-        cancel.setCursor(Qt.PointingHandCursor)
+        cancel.setObjectName(
+            "cancelButton"
+        )
+
+        cancel.setCursor(
+            Qt.PointingHandCursor
+        )
+
         cancel.clicked.connect(
             bbo_dialog.reject
         )
 
-        layout.addSpacing(6)
+        layout.addSpacing(
+            6
+        )
 
         layout.addWidget(
             cancel,
             alignment=Qt.AlignRight,
         )
 
-        bbo_dialog.exec()
+        self.show_dialog(bbo_dialog)
 
     # =====================================================
     # LOAD BBO TUTORIAL
@@ -494,11 +895,21 @@ class HomePage(QWidget):
 
         button = QPushButton()
 
-        button.setObjectName("tutorialOption")
-        button.setMinimumHeight(78)
-        button.setCursor(Qt.PointingHandCursor)
+        button.setObjectName(
+            "tutorialOption"
+        )
 
-        layout = QHBoxLayout(button)
+        button.setMinimumHeight(
+            78
+        )
+
+        button.setCursor(
+            Qt.PointingHandCursor
+        )
+
+        layout = QHBoxLayout(
+            button
+        )
 
         layout.setContentsMargins(
             15,
@@ -507,19 +918,33 @@ class HomePage(QWidget):
             10,
         )
 
-        layout.setSpacing(15)
+        layout.setSpacing(
+            15
+        )
 
         # -------------------------------------------------
         # ICON
         # -------------------------------------------------
 
-        icon_label = QLabel(icon)
+        icon_label = QLabel(
+            icon
+        )
 
-        icon_label.setObjectName("tutorialIcon")
-        icon_label.setAlignment(Qt.AlignCenter)
-        icon_label.setFixedWidth(40)
+        icon_label.setObjectName(
+            "tutorialIcon"
+        )
 
-        layout.addWidget(icon_label)
+        icon_label.setAlignment(
+            Qt.AlignCenter
+        )
+
+        icon_label.setFixedWidth(
+            40
+        )
+
+        layout.addWidget(
+            icon_label
+        )
 
         # -------------------------------------------------
         # TEXT
@@ -527,7 +952,9 @@ class HomePage(QWidget):
 
         text_container = QWidget()
 
-        text_layout = QVBoxLayout(text_container)
+        text_layout = QVBoxLayout(
+            text_container
+        )
 
         text_layout.setContentsMargins(
             0,
@@ -536,23 +963,41 @@ class HomePage(QWidget):
             0,
         )
 
-        text_layout.setSpacing(2)
+        text_layout.setSpacing(
+            2
+        )
 
-        title_label = QLabel(title)
-        title_label.setObjectName("tutorialOptionTitle")
+        title_label = QLabel(
+            title
+        )
 
-        description_label = QLabel(description)
+        title_label.setObjectName(
+            "tutorialOptionTitle"
+        )
+
+        description_label = QLabel(
+            description
+        )
 
         description_label.setObjectName(
             "tutorialOptionDescription"
         )
 
-        description_label.setWordWrap(True)
+        description_label.setWordWrap(
+            True
+        )
 
-        text_layout.addWidget(title_label)
-        text_layout.addWidget(description_label)
+        text_layout.addWidget(
+            title_label
+        )
 
-        layout.addWidget(text_container)
+        text_layout.addWidget(
+            description_label
+        )
+
+        layout.addWidget(
+            text_container
+        )
 
         return button
 
@@ -570,21 +1015,26 @@ class HomePage(QWidget):
 
         button = QPushButton()
 
-        button.setObjectName("homeCard")
+        button.setObjectName(
+            "homeCard"
+        )
 
         button.setProperty(
             "selected",
             selected,
         )
 
-        button.setMinimumHeight(92)
-        button.setCursor(Qt.PointingHandCursor)
+        button.setMinimumHeight(
+            92
+        )
 
-        # -------------------------------------------------
-        # CARD LAYOUT
-        # -------------------------------------------------
+        button.setCursor(
+            Qt.PointingHandCursor
+        )
 
-        layout = QHBoxLayout(button)
+        layout = QHBoxLayout(
+            button
+        )
 
         layout.setContentsMargins(
             15,
@@ -593,27 +1043,35 @@ class HomePage(QWidget):
             12,
         )
 
-        layout.setSpacing(15)
+        layout.setSpacing(
+            15
+        )
 
-        # -------------------------------------------------
-        # ICON
-        # -------------------------------------------------
+        icon_label = QLabel(
+            icon
+        )
 
-        icon_label = QLabel(icon)
+        icon_label.setObjectName(
+            "homeIcon"
+        )
 
-        icon_label.setObjectName("homeIcon")
-        icon_label.setAlignment(Qt.AlignCenter)
-        icon_label.setFixedWidth(35)
+        icon_label.setAlignment(
+            Qt.AlignCenter
+        )
 
-        layout.addWidget(icon_label)
+        icon_label.setFixedWidth(
+            35
+        )
 
-        # -------------------------------------------------
-        # TEXT CONTAINER
-        # -------------------------------------------------
+        layout.addWidget(
+            icon_label
+        )
 
         text_container = QWidget()
 
-        text_layout = QVBoxLayout(text_container)
+        text_layout = QVBoxLayout(
+            text_container
+        )
 
         text_layout.setContentsMargins(
             0,
@@ -622,31 +1080,41 @@ class HomePage(QWidget):
             0,
         )
 
-        text_layout.setSpacing(3)
+        text_layout.setSpacing(
+            3
+        )
 
-        # -------------------------------------------------
-        # TITLE
-        # -------------------------------------------------
+        title_label = QLabel(
+            title
+        )
 
-        title_label = QLabel(title)
-        title_label.setObjectName("homeCardTitle")
+        title_label.setObjectName(
+            "homeCardTitle"
+        )
 
-        # -------------------------------------------------
-        # DESCRIPTION
-        # -------------------------------------------------
-
-        description_label = QLabel(description)
+        description_label = QLabel(
+            description
+        )
 
         description_label.setObjectName(
             "homeCardDescription"
         )
 
-        description_label.setWordWrap(True)
+        description_label.setWordWrap(
+            True
+        )
 
-        text_layout.addWidget(title_label)
-        text_layout.addWidget(description_label)
+        text_layout.addWidget(
+            title_label
+        )
 
-        layout.addWidget(text_container)
+        text_layout.addWidget(
+            description_label
+        )
+
+        layout.addWidget(
+            text_container
+        )
 
         return button
 
@@ -695,6 +1163,7 @@ class HomePage(QWidget):
         QPushButton#tutorialOption:disabled {
             background-color: #172c23;
             border: 1px solid #263d33;
+            color: #596860;
         }
 
         QLabel#tutorialIcon {
