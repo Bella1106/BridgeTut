@@ -9,6 +9,7 @@ A GameRecord contains:
 - All played tricks
 - Trick winners
 - Scoring information
+- BBO makeable-tricks reference data
 """
 
 from datetime import datetime
@@ -35,6 +36,7 @@ class GameRecord:
         board_number=None,
         doubled=False,
         doubling_state=None,
+        makeable_tricks=None,
     ):
 
         # =================================================
@@ -63,18 +65,13 @@ class GameRecord:
 
         self.board_number = board_number
 
+        self.makeable_tricks = (
+            makeable_tricks
+        )
+
         # =================================================
         # DOUBLING
         # =================================================
-
-        # New games can store the complete doubling state:
-        #
-        # None                    -> Undoubled
-        # SpecialCall.DOUBLE      -> Doubled
-        # SpecialCall.REDOUBLE    -> Redoubled
-        #
-        # The old "doubled" boolean is retained for
-        # backwards compatibility.
 
         if doubling_state is None:
 
@@ -103,32 +100,11 @@ class GameRecord:
         # PERSISTENCE
         # =================================================
 
-        # HistoryManager sets this callback when the
-        # GameRecord is created or loaded.
-        #
-        # It is used to save the history whenever
-        # something in this game changes.
-
         self._on_change = None
 
         # =================================================
         # PLAY HISTORY
         # =================================================
-
-        # Each item represents one completed trick.
-        #
-        # Example:
-        #
-        # {
-        #     "trick_number": 1,
-        #     "plays": {
-        #         Position.NORTH: card,
-        #         Position.EAST: card,
-        #         Position.SOUTH: card,
-        #         Position.WEST: card,
-        #     },
-        #     "winner": Position.NORTH
-        # }
 
         self.tricks = []
 
@@ -203,9 +179,6 @@ class GameRecord:
         # BACKWARDS COMPATIBILITY
         # -------------------------------------------------
 
-        # Older saved GameRecords only have "doubled".
-        # Convert that value into the new doubling state.
-
         if not hasattr(
             self,
             "doubling_state",
@@ -225,8 +198,12 @@ class GameRecord:
 
                 self.doubling_state = None
 
-        # Keep the old boolean synchronized with the
-        # new doubling state.
+        if not hasattr(
+            self,
+            "makeable_tricks",
+        ):
+
+            self.makeable_tricks = None
 
         self.doubled = (
             self.doubling_state
@@ -245,8 +222,6 @@ class GameRecord:
     ):
 
         self.notes = notes
-
-        # Save the updated notes.
 
         self._notify_change()
 
@@ -284,8 +259,6 @@ class GameRecord:
         self.tricks.append(
             trick
         )
-
-        # Save the updated trick history.
 
         self._notify_change()
 
@@ -415,9 +388,6 @@ class GameRecord:
 
         "the vulnerability printed on this board"
 
-        # Games saved before boards were numbered have no board
-        # number at all, so they read as not vulnerable.
-
         return determine_vulnerability(
             getattr(
                 self,
@@ -492,8 +462,6 @@ class GameRecord:
 
         self.result = self.result_text
 
-        # Save the calculated score and result.
-
         self._notify_change()
 
         return self.final_score
@@ -562,9 +530,6 @@ class GameRecord:
         removed_trick = (
             self.tricks.pop()
         )
-
-        # The previously calculated score is no longer valid
-        # because the game state has changed.
 
         self.final_score = None
 

@@ -1,4 +1,5 @@
 from pathlib import Path
+from copy import deepcopy
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -66,6 +67,10 @@ class MainWindow(QMainWindow):
         )
 
         self.setup_ui()
+
+    # =====================================================
+    # UI SETUP
+    # =====================================================
 
     def setup_ui(self):
 
@@ -186,15 +191,25 @@ class MainWindow(QMainWindow):
             self.pages
         )
 
+        # =================================================
+        # HOME
+        # =================================================
+
         self.home_page = HomePage(
             new_game_callback=lambda:
             self.start_new_game(),
 
+            resume_game_callback=lambda:
+            self.resume_game(),
+
+            should_show_resume_callback=lambda:
+            self.has_unfinished_game(),
+
             history_callback=lambda:
             self.navigate("History"),
 
-            lesson_callback=lambda:
-            self.start_test_mode_one(),
+            lesson_callback=lambda mode:
+            self.handle_lesson_selection(mode),
 
             tutorials_callback=lambda mode, filename:
             self.start_bbo_example(filename)
@@ -206,6 +221,10 @@ class MainWindow(QMainWindow):
             self.home_page
         )
 
+        # =================================================
+        # BIDDING
+        # =================================================
+
         self.bidding_page = BiddingPage(
             dealer=self.current_dealer,
             board_number=self.board_number,
@@ -215,14 +234,24 @@ class MainWindow(QMainWindow):
             self.bidding_page
         )
 
+        # =================================================
+        # PLAY
+        # =================================================
+
         self.play_page = PlayPage()
 
         self.pages.addWidget(
             self.play_page
         )
 
+        # =================================================
+        # HISTORY
+        # =================================================
+
         self.history_page = HistoryPage(
-            self.history_manager
+            self.history_manager,
+            play_deal_callback=lambda game:
+            self.play_existing_deal(game),
         )
 
         self.pages.addWidget(
@@ -234,6 +263,160 @@ class MainWindow(QMainWindow):
         self.navigate(
             "Home"
         )
+
+    # =====================================================
+    # UNFINISHED GAME CHECK
+    # =====================================================
+
+    def has_unfinished_game(self):
+
+        latest_game = (
+            self.history_manager.get_latest_game()
+        )
+
+        if latest_game is None:
+
+            return False
+
+        return not latest_game.is_complete
+
+    # =====================================================
+    # RESUME GAME
+    # =====================================================
+
+    def resume_game(self):
+
+        latest_game = (
+            self.history_manager.get_latest_game()
+        )
+
+        # -------------------------------------------------
+        # Safety fallback
+        # -------------------------------------------------
+
+        if latest_game is None:
+
+            self.start_new_game()
+
+            return
+
+        # -------------------------------------------------
+        # A completed latest game cannot be resumed.
+        # -------------------------------------------------
+
+        if latest_game.is_complete:
+
+            self.start_new_game()
+
+            return
+
+        # -------------------------------------------------
+        # If PlayPage is already displaying this exact
+        # GameRecord, do NOT reset it.
+        #
+        # This preserves partial-trick state.
+        # -------------------------------------------------
+
+        if (
+            self.play_page.game_loaded
+            and self.play_page.game_record
+            is latest_game
+        ):
+
+            self.play_data = {
+                "resume_game_record": latest_game,
+            }
+
+            self.navigate(
+                "Play"
+            )
+
+            return
+
+        # -------------------------------------------------
+        # Otherwise load the saved GameRecord.
+        # -------------------------------------------------
+
+        self.play_page.reset_for_new_game()
+
+        self.play_data = {
+            "resume_game_record": latest_game,
+        }
+
+        self.navigate(
+            "Play"
+        )
+
+    # =====================================================
+    # PLAY EXISTING DEAL
+    # =====================================================
+
+    def play_existing_deal(
+        self,
+        game,
+    ):
+
+        if game is None:
+
+            return
+
+        # -------------------------------------------------
+        # COPY THE ORIGINAL PLAYERS/HANDS
+        #
+        # The historical game must not be modified when
+        # the replay is played.
+        # -------------------------------------------------
+
+        players = deepcopy(
+            game.players
+        )
+
+        # -------------------------------------------------
+        # Reset the currently loaded play game.
+        # -------------------------------------------------
+
+        self.play_page.reset_for_new_game()
+
+        # -------------------------------------------------
+        # Create a fresh BiddingPage using the exact
+        # same deal.
+        # -------------------------------------------------
+
+        old_bidding_page = self.bidding_page
+
+        self.bidding_page = BiddingPage(
+            dealer=game.dealer,
+            board_number=game.board_number,
+            players=players,
+        )
+
+        self.pages.insertWidget(
+            1,
+            self.bidding_page
+        )
+
+        self.pages.removeWidget(
+            old_bidding_page
+        )
+
+        old_bidding_page.deleteLater()
+
+        # -------------------------------------------------
+        # This is a new game.
+        #
+        # BiddingPage will create the appropriate
+        # play_data when the auction finishes.
+        # -------------------------------------------------
+
+        self.play_data = None
+
+        self.navigate(
+            "Bidding"
+        )
+
+    # =====================================================
+    # START NEW GAME
+    # =====================================================
 
     def start_new_game(self):
 
@@ -269,6 +452,95 @@ class MainWindow(QMainWindow):
             "Bidding"
         )
 
+    # =====================================================
+    # RESTART BIDDING
+    # =====================================================
+
+    def restart_bidding(self):
+
+        self.play_page.reset_for_new_game()
+
+        old_bidding_page = self.bidding_page
+
+        # =================================================
+        # BBO EXAMPLE
+        # =================================================
+
+        if old_bidding_page.bbo_game_data is not None:
+
+            self.bidding_page = BiddingPage(
+                bbo_game_data=(
+                    old_bidding_page.bbo_game_data
+                ),
+
+                players=(
+                    old_bidding_page.players
+                ),
+            )
+
+        # =================================================
+        # GUIDED LESSON
+        # =================================================
+
+        elif old_bidding_page.tutorial_lesson_data is not None:
+
+            tutorial_data = (
+                old_bidding_page.tutorial_lesson_data
+            )
+
+            guided_lesson = GuidedBiddingLesson(
+                dealer=tutorial_data.dealer,
+                script=tutorial_data.auction,
+                user_seat=Position.SOUTH,
+            )
+
+            guided_state = GuidedBiddingState(
+                guided_lesson
+            )
+
+            self.bidding_page = BiddingPage(
+                guided_bidding_state=guided_state,
+                tutorial_lesson_data=tutorial_data,
+                players=old_bidding_page.players,
+            )
+
+            self.bidding_page.guided_auction_finished.connect(
+                self.finish_bid_and_play_lesson
+            )
+
+        # =================================================
+        # NORMAL GAME
+        # =================================================
+
+        else:
+
+            self.bidding_page = BiddingPage(
+                dealer=old_bidding_page.dealer,
+                board_number=old_bidding_page.board_number,
+                players=old_bidding_page.players,
+            )
+
+        self.pages.insertWidget(
+            1,
+            self.bidding_page
+        )
+
+        self.pages.removeWidget(
+            old_bidding_page
+        )
+
+        old_bidding_page.deleteLater()
+
+        self.play_data = None
+
+        self.navigate(
+            "Bidding"
+        )
+
+    # =====================================================
+    # BBO EXAMPLE
+    # =====================================================
+
     def start_bbo_example(
         self,
         filename,
@@ -279,11 +551,15 @@ class MainWindow(QMainWindow):
         selected_tutorial = None
 
         for tutorial in get_bbo_tutorials():
+
             if tutorial.filename == filename:
+
                 selected_tutorial = tutorial
+
                 break
 
         if selected_tutorial is None:
+
             return
 
         bbo_game_data = load_bbo_tutorial(
@@ -312,6 +588,10 @@ class MainWindow(QMainWindow):
         self.navigate(
             "Bidding"
         )
+
+    # =====================================================
+    # BID + PLAY LESSON
+    # =====================================================
 
     def start_bid_and_play_lesson(
         self,
@@ -358,6 +638,10 @@ class MainWindow(QMainWindow):
             "Bidding"
         )
 
+    # =====================================================
+    # FINISH BID + PLAY LESSON
+    # =====================================================
+
     def finish_bid_and_play_lesson(
         self,
         tutorial_data,
@@ -386,6 +670,10 @@ class MainWindow(QMainWindow):
         self.navigate(
             "Play"
         )
+
+    # =====================================================
+    # START LESSON
+    # =====================================================
 
     def start_lesson(self):
 
@@ -423,6 +711,27 @@ class MainWindow(QMainWindow):
             "Play"
         )
 
+    # =====================================================
+    # LESSON SELECTION
+    # =====================================================
+
+    def handle_lesson_selection(
+        self,
+        mode,
+    ):
+
+        if mode == "play_only":
+
+            self.start_test_mode_one()
+
+        elif mode == "bid_and_play":
+
+            self.start_lesson()
+
+    # =====================================================
+    # NAVIGATION
+    # =====================================================
+
     def navigate(
         self,
         page_name
@@ -436,6 +745,7 @@ class MainWindow(QMainWindow):
         }
 
         if page_name not in page_indexes:
+
             return
 
         self.pages.setCurrentIndex(
@@ -468,6 +778,10 @@ class MainWindow(QMainWindow):
         if page_name == "History":
 
             self.history_page.refresh_history()
+
+    # =====================================================
+    # STYLE
+    # =====================================================
 
     @staticmethod
     def get_stylesheet():
@@ -542,6 +856,10 @@ class MainWindow(QMainWindow):
         }
 
         """
+
+    # =====================================================
+    # START TEST MODE ONE
+    # =====================================================
 
     def start_test_mode_one(self):
 

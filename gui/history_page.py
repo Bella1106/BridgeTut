@@ -21,12 +21,14 @@ class HistoryPage(QWidget):
     def __init__(
         self,
         history_manager,
+        play_deal_callback=None,
         parent=None,
     ):
-
         super().__init__(parent)
 
         self.history_manager = history_manager
+
+        self.play_deal_callback = play_deal_callback
 
         self.selected_game = None
 
@@ -39,6 +41,10 @@ class HistoryPage(QWidget):
         self.tricks_container = None
         self.tricks_layout = None
 
+        self.makeable_tricks_container = None
+        self.makeable_tricks_table = None
+
+        self.play_deal_button = None
         self.delete_button = None
 
         self.setup_ui()
@@ -147,6 +153,10 @@ class HistoryPage(QWidget):
             20,
         )
 
+        right_layout.setSpacing(
+            8
+        )
+
         # -------------------------------------------------
         # GAME TITLE
         # -------------------------------------------------
@@ -191,8 +201,121 @@ class HistoryPage(QWidget):
             self.game_score
         )
 
+        # =================================================
+        # GAME INFORMATION
+        # =================================================
+
+        game_info_frame = QFrame()
+
+        game_info_frame.setObjectName(
+            "gameInfoFrame"
+        )
+
+        game_info_layout = QHBoxLayout(
+            game_info_frame
+        )
+
+        game_info_layout.setContentsMargins(
+            0,
+            4,
+            0,
+            6,
+        )
+
+        game_info_layout.setSpacing(
+            30
+        )
+
         # -------------------------------------------------
-        # GAME DETAILS
+        # LEFT INFORMATION COLUMN
+        # -------------------------------------------------
+
+        left_info = QVBoxLayout()
+
+        left_info.setSpacing(
+            5
+        )
+
+        self.dealer_label = QLabel()
+        self.dealer_label.setObjectName(
+            "gameInfoLabel"
+        )
+
+        self.contract_label = QLabel()
+        self.contract_label.setObjectName(
+            "gameInfoLabel"
+        )
+
+        self.declarer_label = QLabel()
+        self.declarer_label.setObjectName(
+            "gameInfoLabel"
+        )
+
+        left_info.addWidget(
+            self.dealer_label
+        )
+
+        left_info.addWidget(
+            self.contract_label
+        )
+
+        left_info.addWidget(
+            self.declarer_label
+        )
+
+        # -------------------------------------------------
+        # RIGHT INFORMATION COLUMN
+        # -------------------------------------------------
+
+        right_info = QVBoxLayout()
+
+        right_info.setSpacing(
+            5
+        )
+
+        self.doubling_label = QLabel()
+        self.doubling_label.setObjectName(
+            "gameInfoLabel"
+        )
+
+        self.vulnerability_label = QLabel()
+        self.vulnerability_label.setObjectName(
+            "gameInfoLabel"
+        )
+
+        self.outcome_label = QLabel()
+        self.outcome_label.setObjectName(
+            "gameInfoLabel"
+        )
+
+        right_info.addWidget(
+            self.doubling_label
+        )
+
+        right_info.addWidget(
+            self.vulnerability_label
+        )
+
+        right_info.addWidget(
+            self.outcome_label
+        )
+
+        game_info_layout.addLayout(
+            left_info,
+            1
+        )
+
+        game_info_layout.addLayout(
+            right_info,
+            1
+        )
+
+        right_layout.addWidget(
+            game_info_frame
+        )
+
+        # -------------------------------------------------
+        # BIDS / TRICKS SUMMARY
         # -------------------------------------------------
 
         self.game_details = QLabel()
@@ -210,6 +333,74 @@ class HistoryPage(QWidget):
         )
 
         # =================================================
+        # BBO MAKEABLE TRICKS
+        # =================================================
+
+        self.makeable_tricks_container = QFrame()
+
+        self.makeable_tricks_container.setObjectName(
+            "makeableTricksContainer"
+        )
+
+        makeable_layout = QVBoxLayout(
+            self.makeable_tricks_container
+        )
+
+        makeable_layout.setContentsMargins(
+            0,
+            4,
+            0,
+            6,
+        )
+
+        makeable_layout.setSpacing(
+            5
+        )
+
+        makeable_title = QLabel(
+            "BBO MAKEABLE TRICKS"
+        )
+
+        makeable_title.setObjectName(
+            "sectionTitle"
+        )
+
+        makeable_layout.addWidget(
+            makeable_title
+        )
+
+        self.makeable_tricks_table = QFrame()
+
+        self.makeable_tricks_table.setObjectName(
+            "makeableTricksTable"
+        )
+
+        makeable_table_layout = QVBoxLayout(
+            self.makeable_tricks_table
+        )
+
+        makeable_table_layout.setContentsMargins(
+            8,
+            5,
+            8,
+            5,
+        )
+
+        makeable_table_layout.setSpacing(
+            1
+        )
+
+        makeable_layout.addWidget(
+            self.makeable_tricks_table
+        )
+
+        right_layout.addWidget(
+            self.makeable_tricks_container
+        )
+
+        self.makeable_tricks_container.hide()
+
+        # =================================================
         # TRICK HISTORY
         # =================================================
 
@@ -224,10 +415,6 @@ class HistoryPage(QWidget):
         right_layout.addWidget(
             tricks_title
         )
-
-        # -------------------------------------------------
-        # SCROLL AREA
-        # -------------------------------------------------
 
         scroll = QScrollArea()
 
@@ -304,13 +491,41 @@ class HistoryPage(QWidget):
         )
 
         # =================================================
-        # NOTE ACTIONS
+        # ACTIONS
         # =================================================
 
         actions_layout = QHBoxLayout()
 
         actions_layout.setSpacing(
             10
+        )
+
+        # -------------------------------------------------
+        # PLAY THIS DEAL
+        # -------------------------------------------------
+
+        self.play_deal_button = QPushButton(
+            "Play This Deal"
+        )
+
+        self.play_deal_button.setObjectName(
+            "playDealButton"
+        )
+
+        self.play_deal_button.setCursor(
+            Qt.PointingHandCursor
+        )
+
+        self.play_deal_button.clicked.connect(
+            self.play_selected_deal
+        )
+
+        self.play_deal_button.setEnabled(
+            False
+        )
+
+        actions_layout.addWidget(
+            self.play_deal_button
         )
 
         # -------------------------------------------------
@@ -369,18 +584,10 @@ class HistoryPage(QWidget):
             actions_layout
         )
 
-        # -------------------------------------------------
-        # ADD RIGHT PANEL
-        # -------------------------------------------------
-
         main_layout.addWidget(
             right_panel,
             2,
         )
-
-        # -------------------------------------------------
-        # STYLE
-        # -------------------------------------------------
 
         self.setStyleSheet(
             self.get_style()
@@ -392,6 +599,12 @@ class HistoryPage(QWidget):
 
     def refresh_history(self):
 
+        self.selected_game = None
+
+        self.game_list.blockSignals(
+            True
+        )
+
         self.game_list.clear()
 
         games = (
@@ -400,8 +613,14 @@ class HistoryPage(QWidget):
 
         for game in games:
 
+            status = ""
+
+            if not game.is_complete:
+
+                status = " (In Progress)"
+
             item = QListWidgetItem(
-                f"Game #{game.game_id}"
+                f"Game #{game.game_id}{status}"
             )
 
             item.setData(
@@ -413,15 +632,15 @@ class HistoryPage(QWidget):
                 item
             )
 
+        self.game_list.blockSignals(
+            False
+        )
+
         if not games:
 
             self.show_no_games()
 
             return
-
-        # -------------------------------------------------
-        # AUTOMATICALLY SELECT LATEST GAME
-        # -------------------------------------------------
 
         self.game_list.setCurrentRow(
             0
@@ -455,6 +674,8 @@ class HistoryPage(QWidget):
 
         if game is None:
 
+            self.show_no_games()
+
             return
 
         self.selected_game = game
@@ -463,13 +684,31 @@ class HistoryPage(QWidget):
             game
         )
 
-        # Enable delete button.
+        self.delete_button.setEnabled(
+            True
+        )
 
-        if self.delete_button is not None:
+        self.play_deal_button.setEnabled(
+            True
+        )
 
-            self.delete_button.setEnabled(
-                True
-            )
+    # =====================================================
+    # PLAY SELECTED DEAL
+    # =====================================================
+
+    def play_selected_deal(self):
+
+        if self.selected_game is None:
+
+            return
+
+        if self.play_deal_callback is None:
+
+            return
+
+        self.play_deal_callback(
+            self.selected_game
+        )
 
     # =====================================================
     # DISPLAY GAME
@@ -484,10 +723,6 @@ class HistoryPage(QWidget):
             f"Game #{game.game_id}"
         )
 
-        # -------------------------------------------------
-        # GAME WINNER
-        # -------------------------------------------------
-
         winner_text = (
             self.get_game_winner(
                 game
@@ -498,17 +733,9 @@ class HistoryPage(QWidget):
             f"<b>Winner:</b> {winner_text}"
         )
 
-        # -------------------------------------------------
-        # FINAL SCORE
-        # -------------------------------------------------
-
         score = game.final_score
 
         if score is None:
-
-            # Calculate the score if the game
-            # has already been completed but
-            # the score has not yet been calculated.
 
             if game.is_complete:
 
@@ -541,8 +768,8 @@ class HistoryPage(QWidget):
             )
 
             score_text = (
-                "<b>Final Score:</b><br>"
-                f"North / South: {ns_text}<br>"
+                "<b>Final Score:</b> "
+                f"North / South: {ns_text}  |  "
                 f"East / West: {ew_text}"
             )
 
@@ -551,7 +778,7 @@ class HistoryPage(QWidget):
         )
 
         # -------------------------------------------------
-        # GAME DETAILS
+        # GAME INFORMATION
         # -------------------------------------------------
 
         dealer = self.position_name(
@@ -572,10 +799,6 @@ class HistoryPage(QWidget):
             game
         )
 
-        # -------------------------------------------------
-        # GAME OUTCOME
-        # -------------------------------------------------
-
         outcome = getattr(
             game,
             "result",
@@ -584,24 +807,47 @@ class HistoryPage(QWidget):
 
         if outcome is None:
 
-            outcome = game.result_text
+            outcome = getattr(
+                game,
+                "result_text",
+                "—",
+            )
 
-        details = (
-            f"<b>Dealer:</b> {dealer}<br>"
-            f"<b>Contract:</b> {contract}<br>"
-            f"<b>Declarer:</b> {declarer}<br>"
-            f"<b>Doubling:</b> {doubling}<br>"
+        self.dealer_label.setText(
+            f"<b>Dealer:</b> {dealer}"
+        )
+
+        self.contract_label.setText(
+            f"<b>Contract:</b> {contract}"
+        )
+
+        self.declarer_label.setText(
+            f"<b>Declarer:</b> {declarer}"
+        )
+
+        self.doubling_label.setText(
+            f"<b>Doubling:</b> {doubling}"
+        )
+
+        self.vulnerability_label.setText(
             f"<b>Vulnerability:</b> "
-            f"{vulnerability}<br>"
-            f"<b>Result:</b> {outcome}<br>"
+            f"{vulnerability}"
+        )
+
+        self.outcome_label.setText(
+            f"<b>Result:</b> {outcome}"
+        )
+
+        self.game_details.setText(
             f"<b>Bids:</b> "
-            f"{len(game.bidding_history)}<br>"
+            f"{len(game.bidding_history)}"
+            f" &nbsp;&nbsp; "
             f"<b>Tricks:</b> "
             f"{game.tricks_played} / 13"
         )
 
-        self.game_details.setText(
-            details
+        self.display_makeable_tricks(
+            game
         )
 
         self.display_tricks(
@@ -609,8 +855,452 @@ class HistoryPage(QWidget):
         )
 
         self.notes_edit.setPlainText(
-            game.notes
+            getattr(
+                game,
+                "notes",
+                "",
+            )
         )
+
+    # =====================================================
+    # DISPLAY BBO MAKEABLE TRICKS
+    # =====================================================
+
+    def display_makeable_tricks(
+        self,
+        game,
+    ):
+
+        makeable_tricks = getattr(
+            game,
+            "makeable_tricks",
+            None,
+        )
+
+        if not makeable_tricks:
+
+            self.makeable_tricks_container.hide()
+
+            return
+
+        layout = (
+            self.makeable_tricks_table.layout()
+        )
+
+        while layout.count():
+
+            item = layout.takeAt(
+                0
+            )
+
+            widget = item.widget()
+
+            if widget is not None:
+
+                widget.deleteLater()
+
+            child_layout = item.layout()
+
+            if child_layout is not None:
+
+                while child_layout.count():
+
+                    child_item = (
+                        child_layout.takeAt(
+                            0
+                        )
+                    )
+
+                    child_widget = (
+                        child_item.widget()
+                    )
+
+                    if child_widget is not None:
+
+                        child_widget.deleteLater()
+
+        header_layout = QHBoxLayout()
+
+        header_layout.setSpacing(
+            4
+        )
+
+        header_layout.setContentsMargins(
+            0,
+            0,
+            0,
+            0,
+        )
+
+        corner = QLabel("")
+
+        corner.setObjectName(
+            "makeableHeader"
+        )
+
+        corner.setFixedWidth(
+            70
+        )
+
+        header_layout.addWidget(
+            corner
+        )
+
+        denominations = [
+            ("♣", "C"),
+            ("♦", "D"),
+            ("♥", "H"),
+            ("♠", "S"),
+            ("NT", "NT"),
+        ]
+
+        for symbol, denomination in denominations:
+
+            label = QLabel(
+                symbol
+            )
+
+            label.setObjectName(
+                "makeableHeader"
+            )
+
+            label.setAlignment(
+                Qt.AlignCenter
+            )
+
+            header_layout.addWidget(
+                label,
+                1
+            )
+
+        layout.addLayout(
+            header_layout
+        )
+
+        positions = [
+            ("North", "N"),
+            ("East", "E"),
+            ("South", "S"),
+            ("West", "W"),
+        ]
+
+        for position_name, position_key in positions:
+
+            row_layout = QHBoxLayout()
+
+            row_layout.setSpacing(
+                4
+            )
+
+            row_layout.setContentsMargins(
+                0,
+                0,
+                0,
+                0,
+            )
+
+            position_label = QLabel(
+                position_name
+            )
+
+            position_label.setObjectName(
+                "makeablePosition"
+            )
+
+            position_label.setFixedWidth(
+                70
+            )
+
+            row_layout.addWidget(
+                position_label
+            )
+
+            values = self.get_makeable_position_values(
+                makeable_tricks,
+                position_key,
+            )
+
+            for _, denomination in denominations:
+
+                value = self.get_makeable_value(
+                    values,
+                    denomination,
+                )
+
+                value_text = (
+                    "—"
+                    if value is None
+                    else str(value)
+                )
+
+                value_label = QLabel(
+                    value_text
+                )
+
+                value_label.setObjectName(
+                    "makeableValue"
+                )
+
+                value_label.setAlignment(
+                    Qt.AlignCenter
+                )
+
+                row_layout.addWidget(
+                    value_label,
+                    1
+                )
+
+            layout.addLayout(
+                row_layout
+            )
+
+        self.makeable_tricks_container.show()
+
+    # =====================================================
+    # GET MAKEABLE POSITION VALUES
+    # =====================================================
+
+    @staticmethod
+    def get_makeable_position_values(
+        makeable_tricks,
+        position_key,
+    ):
+
+        if not isinstance(
+            makeable_tricks,
+            dict,
+        ):
+
+            return {}
+
+        values = makeable_tricks.get(
+            position_key
+        )
+
+        if isinstance(
+            values,
+            dict,
+        ):
+
+            return values
+
+        try:
+
+            from card_model.player import Position
+
+            position_mapping = {
+                "N": Position.NORTH,
+                "E": Position.EAST,
+                "S": Position.SOUTH,
+                "W": Position.WEST,
+            }
+
+            enum_position = (
+                position_mapping.get(
+                    position_key
+                )
+            )
+
+            if enum_position is not None:
+
+                values = makeable_tricks.get(
+                    enum_position
+                )
+
+                if isinstance(
+                    values,
+                    dict,
+                ):
+
+                    return values
+
+        except ImportError:
+
+            pass
+
+        for key, value in makeable_tricks.items():
+
+            if not isinstance(
+                value,
+                dict,
+            ):
+
+                continue
+
+            key_text = str(
+                getattr(
+                    key,
+                    "value",
+                    key,
+                )
+            ).upper()
+
+            if key_text == position_key:
+
+                return value
+
+            if key_text.startswith(
+                position_key
+            ):
+
+                return value
+
+        return {}
+
+    # =====================================================
+    # GET MAKEABLE VALUE
+    # =====================================================
+
+    @staticmethod
+    def get_makeable_value(
+        values,
+        denomination,
+    ):
+
+        if not isinstance(
+            values,
+            dict,
+        ):
+
+            return None
+
+        value = values.get(
+            denomination
+        )
+
+        if value is not None:
+
+            return value
+
+        value = values.get(
+            denomination.lower()
+        )
+
+        if value is not None:
+
+            return value
+
+        try:
+
+            from bidding.bidding_system import Denomination
+
+            denomination_mapping = {
+                "C": getattr(
+                    Denomination,
+                    "CLUBS",
+                    None,
+                ),
+                "D": getattr(
+                    Denomination,
+                    "DIAMONDS",
+                    None,
+                ),
+                "H": getattr(
+                    Denomination,
+                    "HEARTS",
+                    None,
+                ),
+                "S": getattr(
+                    Denomination,
+                    "SPADES",
+                    None,
+                ),
+                "NT": getattr(
+                    Denomination,
+                    "NT",
+                    None,
+                ),
+            }
+
+            enum_value = (
+                denomination_mapping.get(
+                    denomination
+                )
+            )
+
+            if enum_value is not None:
+
+                value = values.get(
+                    enum_value
+                )
+
+                if value is not None:
+
+                    return value
+
+        except ImportError:
+
+            pass
+
+        for key, value in values.items():
+
+            key_text = str(
+                getattr(
+                    key,
+                    "value",
+                    key,
+                )
+            ).upper()
+
+            key_name = str(
+                getattr(
+                    key,
+                    "name",
+                    key,
+                )
+            ).upper()
+
+            aliases = {
+                "C": (
+                    "CLUB",
+                    "CLUBS",
+                    "♣",
+                ),
+                "D": (
+                    "DIAMOND",
+                    "DIAMONDS",
+                    "♦",
+                ),
+                "H": (
+                    "HEART",
+                    "HEARTS",
+                    "♥",
+                ),
+                "S": (
+                    "SPADE",
+                    "SPADES",
+                    "♠",
+                ),
+                "NT": (
+                    "NOTRUMP",
+                    "NO_TRUMP",
+                    "NO-TRUMP",
+                    "NT",
+                ),
+            }
+
+            if (
+                key_text == denomination
+                or key_name == denomination
+            ):
+
+                return value
+
+            if key_text in aliases.get(
+                denomination,
+                (),
+            ):
+
+                return value
+
+            if key_name in aliases.get(
+                denomination,
+                (),
+            ):
+
+                return value
+
+        return None
 
     # =====================================================
     # DOUBLING TEXT
@@ -620,12 +1310,6 @@ class HistoryPage(QWidget):
     def get_doubling_text(
         game,
     ):
-        """
-        Return the doubling state for display.
-
-        Supports the new doubling_state field while
-        remaining compatible with older saved games.
-        """
 
         doubling_state = getattr(
             game,
@@ -640,10 +1324,6 @@ class HistoryPage(QWidget):
         if doubling_state == SpecialCall.DOUBLE:
 
             return "Doubled"
-
-        # -------------------------------------------------
-        # BACKWARDS COMPATIBILITY
-        # -------------------------------------------------
 
         if getattr(
             game,
@@ -663,12 +1343,6 @@ class HistoryPage(QWidget):
     def vulnerability_text(
         game,
     ):
-        """
-        Return the vulnerability stored for the game.
-
-        GameRecord determines vulnerability from the
-        board number.
-        """
 
         vulnerability = getattr(
             game,
@@ -681,7 +1355,11 @@ class HistoryPage(QWidget):
             return "Unknown"
 
         return str(
-            vulnerability
+            getattr(
+                vulnerability,
+                "value",
+                vulnerability,
+            )
         )
 
     # =====================================================
@@ -693,24 +1371,9 @@ class HistoryPage(QWidget):
         game,
     ):
 
-        # -------------------------------------------------
-        # If the game has not been completed,
-        # there is no winner yet.
-        # -------------------------------------------------
-
         if not game.is_complete:
 
             return "Game in progress"
-
-        # -------------------------------------------------
-        # Get the final score.
-        #
-        # Scores are stored from the NS perspective:
-        #
-        # Positive = North/South won
-        # Negative = East/West won
-        # Zero     = Draw
-        # -------------------------------------------------
 
         score = game.final_score
 
@@ -739,10 +1402,6 @@ class HistoryPage(QWidget):
         game,
     ):
 
-        # -------------------------------------------------
-        # CLEAR OLD TRICKS
-        # -------------------------------------------------
-
         while self.tricks_layout.count():
 
             item = (
@@ -756,10 +1415,6 @@ class HistoryPage(QWidget):
             if widget is not None:
 
                 widget.deleteLater()
-
-        # -------------------------------------------------
-        # NO TRICKS
-        # -------------------------------------------------
 
         if not game.tricks:
 
@@ -776,10 +1431,6 @@ class HistoryPage(QWidget):
             )
 
             return
-
-        # -------------------------------------------------
-        # DISPLAY EVERY TRICK
-        # -------------------------------------------------
 
         for trick in game.tricks:
 
@@ -818,10 +1469,6 @@ class HistoryPage(QWidget):
                 5
             )
 
-            # ---------------------------------------------
-            # TRICK TITLE
-            # ---------------------------------------------
-
             title = QLabel(
                 f"TRICK {trick_number}"
             )
@@ -834,10 +1481,6 @@ class HistoryPage(QWidget):
                 title
             )
 
-            # ---------------------------------------------
-            # CARDS
-            # ---------------------------------------------
-
             cards_layout = QHBoxLayout()
 
             cards_layout.setSpacing(
@@ -845,22 +1488,10 @@ class HistoryPage(QWidget):
             )
 
             display_order = [
-
-                self.position_from_letter(
-                    "N"
-                ),
-
-                self.position_from_letter(
-                    "E"
-                ),
-
-                self.position_from_letter(
-                    "S"
-                ),
-
-                self.position_from_letter(
-                    "W"
-                ),
+                self.position_from_letter("N"),
+                self.position_from_letter("E"),
+                self.position_from_letter("S"),
+                self.position_from_letter("W"),
             ]
 
             for position in display_order:
@@ -899,10 +1530,6 @@ class HistoryPage(QWidget):
             trick_layout.addLayout(
                 cards_layout
             )
-
-            # ---------------------------------------------
-            # TRICK WINNER
-            # ---------------------------------------------
 
             winner_text = self.position_name(
                 winner
@@ -968,13 +1595,9 @@ class HistoryPage(QWidget):
         from card_model.player import Position
 
         mapping = {
-
             "N": Position.NORTH,
-
             "E": Position.EAST,
-
             "S": Position.SOUTH,
-
             "W": Position.WEST,
         }
 
@@ -997,10 +1620,6 @@ class HistoryPage(QWidget):
         self.selected_game.set_notes(
             notes
         )
-
-        # -------------------------------------------------
-        # CUSTOM CONFIRMATION MESSAGE BOX
-        # -------------------------------------------------
 
         message_box = QMessageBox(
             self
@@ -1071,10 +1690,6 @@ class HistoryPage(QWidget):
             self.selected_game.game_id
         )
 
-        # -------------------------------------------------
-        # CONFIRM DELETION
-        # -------------------------------------------------
-
         message_box = QMessageBox(
             self
         )
@@ -1144,33 +1759,19 @@ class HistoryPage(QWidget):
 
             return
 
-        # -------------------------------------------------
-        # DELETE FROM HISTORY MANAGER
-        # -------------------------------------------------
-
         self.history_manager.delete_game(
             game_id
         )
 
-        # -------------------------------------------------
-        # CLEAR CURRENT SELECTION
-        # -------------------------------------------------
-
         self.selected_game = None
 
-        # -------------------------------------------------
-        # DISABLE DELETE BUTTON
-        # -------------------------------------------------
+        self.delete_button.setEnabled(
+            False
+        )
 
-        if self.delete_button is not None:
-
-            self.delete_button.setEnabled(
-                False
-            )
-
-        # -------------------------------------------------
-        # REFRESH HISTORY
-        # -------------------------------------------------
+        self.play_deal_button.setEnabled(
+            False
+        )
 
         self.refresh_history()
 
@@ -1194,17 +1795,45 @@ class HistoryPage(QWidget):
             ""
         )
 
+        self.dealer_label.setText(
+            ""
+        )
+
+        self.contract_label.setText(
+            ""
+        )
+
+        self.declarer_label.setText(
+            ""
+        )
+
+        self.doubling_label.setText(
+            ""
+        )
+
+        self.vulnerability_label.setText(
+            ""
+        )
+
+        self.outcome_label.setText(
+            ""
+        )
+
         self.game_details.setText(
             "No games have been recorded yet."
         )
 
         self.notes_edit.clear()
 
-        if self.delete_button is not None:
+        self.delete_button.setEnabled(
+            False
+        )
 
-            self.delete_button.setEnabled(
-                False
-            )
+        self.play_deal_button.setEnabled(
+            False
+        )
+
+        self.makeable_tricks_container.hide()
 
         while self.tricks_layout.count():
 
@@ -1233,7 +1862,17 @@ class HistoryPage(QWidget):
 
             return "—"
 
-        return position.value.title()
+        value = getattr(
+            position,
+            "value",
+            position,
+        )
+
+        value_text = str(
+            value
+        )
+
+        return value_text.title()
 
     @staticmethod
     def position_letter(
@@ -1244,7 +1883,17 @@ class HistoryPage(QWidget):
 
             return "?"
 
-        return position.value.upper()
+        value = getattr(
+            position,
+            "value",
+            position,
+        )
+
+        value_text = str(
+            value
+        ).upper()
+
+        return value_text
 
     # =====================================================
     # STYLE
@@ -1292,26 +1941,69 @@ class HistoryPage(QWidget):
             color: #51b5ba;
             font-size: 16px;
             font-weight: bold;
-            padding-top: 3px;
+            padding-top: 2px;
         }
 
         QLabel#gameScore {
             color: #e5c557;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: bold;
-            padding-bottom: 3px;
+            padding-bottom: 2px;
+        }
+
+        QFrame#gameInfoFrame {
+            background-color: #071710;
+            border: 1px solid #29483b;
+            border-radius: 7px;
+        }
+
+        QLabel#gameInfoLabel {
+            color: #d1dbd5;
+            font-size: 13px;
+            padding: 2px 0px;
         }
 
         QLabel#gameDetails {
-            color: #d1dbd5;
-            font-size: 14px;
-            padding: 10px 0px;
+            color: #9faea7;
+            font-size: 12px;
+            padding: 2px 0px 5px 0px;
         }
 
         QLabel#sectionTitle {
             color: #b9c8c1;
             font-size: 12px;
             letter-spacing: 1px;
+        }
+
+        QFrame#makeableTricksContainer {
+            background-color: transparent;
+        }
+
+        QFrame#makeableTricksTable {
+            background-color: #071710;
+            border: 1px solid #29483b;
+            border-radius: 7px;
+        }
+
+        QLabel#makeableHeader {
+            color: #e5c557;
+            font-size: 13px;
+            font-weight: bold;
+            padding: 2px;
+        }
+
+        QLabel#makeablePosition {
+            color: #b9c8c1;
+            font-size: 12px;
+            font-weight: bold;
+            padding: 2px;
+        }
+
+        QLabel#makeableValue {
+            color: #f1f4f2;
+            font-size: 13px;
+            font-weight: bold;
+            padding: 2px;
         }
 
         QListWidget#gameList {
@@ -1375,6 +2067,30 @@ class HistoryPage(QWidget):
             border: 1px solid #29483b;
             border-radius: 6px;
             padding: 8px;
+        }
+
+        QPushButton#playDealButton {
+            background-color: #e5c557;
+            color: #071710;
+            border: none;
+            border-radius: 6px;
+            padding: 11px 14px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        QPushButton#playDealButton:hover {
+            background-color: #efd477;
+        }
+
+        QPushButton#playDealButton:pressed {
+            background-color: #c9aa42;
+        }
+
+        QPushButton#playDealButton:disabled {
+            background-color: #11271d;
+            color: #5f6964;
+            border: 1px solid #29483b;
         }
 
         QPushButton#saveButton {
