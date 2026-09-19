@@ -12,7 +12,7 @@ QD,8D,KH,9D
 2H,7H,4S,4H
 4C,9C,QS,JC
 5H,8H,8S,QH
-TC,QC,KS,K
+TC,QC,KS,KC
 Claim
 NOTE: Cater for 4-2 losers in Clubs, as even number missing = oddly distributed and v.v. And ruff 3rd club high because you can afford to, so play safe.
 Cards held: spades;hearts;diamonds;clubs
@@ -27,7 +27,7 @@ QC,4C,3C,2C
 JC,5C,8C,3S
 TD,2H,TS,JD
 JS,QS,KS,6S
-TS,7S,8S,AS
+5S,7S,8S,AS
 8D,3H,5H,3D
 6C,TC,AC,4D
 KC,6D,7C,6H
@@ -39,7 +39,7 @@ Cards held: spades;hearts;diamonds;clubs
 N: AK543;QJ4;T73;J5
 S: 876;AKT653;86;A7
 W: JT9;87;Q4;T98642
-E: Q2;9S;AKJ952;KQ3
+E: Q2;92;AKJ952;KQ3
 PLAY 4H
 QD,3D,KD,6D
 AD,8D,4D,7D
@@ -60,6 +60,7 @@ PLAY 3S
 QD,3D,7D,5D
 JD,6D,KD,4S
 KC,9C,5C,8C
+AC,6C,2C,7C
 3C,5S,JS,TC
 QS,2S,7S,8S
 3S,6S,AS,9S
