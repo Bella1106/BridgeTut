@@ -32,7 +32,7 @@ AS,3H,3S,2S
 4D,2D,JD,8D
 9S,9H,QS,5S
 AH,3D,JC,TH
-6D,TD,QD,7D
+6D,5D,QD,7D
 Claim
 NOTE: (1) W must have long H based on her bid, so don't play the A on the first trick in case E can trump it; and the losing JC must be discarded on the winning AH which can only be done once S has no H left. (2) dummy is short of entries for the D finesses, so do not rough the H with 6S on the 2nd trick, as keeping it allows entry to dummy by playing 6S up to the 7S winner.
 Cards held: spades;hearts;diamonds;clubs
